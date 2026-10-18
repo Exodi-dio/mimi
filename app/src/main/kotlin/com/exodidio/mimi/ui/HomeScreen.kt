@@ -142,6 +142,7 @@ private fun TrackCard(track: Track, onClick: () -> Unit) {
                 mediaId = track.contentUri,
                 targetPx = 384,
                 cacheKey = track.albumId.takeIf { it != 0L }?.let { "album:$it" },
+                albumId = track.albumId,
             ),
             modifier = Modifier.fillMaxWidth().aspectRatio(1f),
             shape = RoundedCornerShape(8.dp),

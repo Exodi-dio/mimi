@@ -72,7 +72,12 @@ fun TrackRow(
         ) {
             if (LocalSettings.current.showArtwork) {
                 Artwork(
-                    bitmap = rememberAlbumArt(track.contentUri, targetPx = 128, cacheKey = artKey),
+                    bitmap = rememberAlbumArt(
+                        mediaId = track.contentUri,
+                        targetPx = 128,
+                        cacheKey = artKey,
+                        albumId = track.albumId,
+                    ),
                     modifier = Modifier.size(44.dp),
                     shape = RoundedCornerShape(4.dp),
                     iconSize = 20.dp,

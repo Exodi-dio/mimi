@@ -26,7 +26,7 @@ fun AlbumCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val artwork = rememberAlbumArt(album.artworkUri, targetPx = 384)
+    val artwork = rememberAlbumArt(album.artworkUri, targetPx = 384, albumId = album.albumId)
 
     Column(modifier = modifier.clickable(onClick = onClick)) {
         Artwork(

@@ -1,5 +1,6 @@
 package com.exodidio.mimi.ui
 
+import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -15,28 +16,41 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Cover art embedded in the audio file, decoded off the main thread. Null when the
- * file carries no picture or the tag cannot be read, so callers draw a placeholder.
+ * Cover art for a song or an album, decoded off the main thread. Null when nothing can
+ * be found, so callers draw a placeholder.
  *
- * Reading the tag straight from the file keeps this working entirely offline and
- * independent of what MediaStore chose to index.
+ * Two places are tried, in order: the picture embedded in the file's own tags, then the
+ * album art the device indexed for that album. The first is authoritative and needs no
+ * provider; the second is what finds the covers that live beside the music as a
+ * `cover.jpg`, which embedded tags never carry.
+ *
+ * Reading straight from the file keeps this working entirely offline and independent of
+ * what MediaStore chose to index.
  *
  * [cacheKey] lets several callers share one decode. Every song in an album carries the
  * same cover, and a scrolling list asks for all of them, so the songs list keys by album
  * rather than by file and pays for one read instead of ten.
+ *
+ * [albumId] is only a fallback, and zero means "no album" rather than album number zero.
  */
 @Composable
 fun rememberAlbumArt(
     mediaId: String?,
     targetPx: Int = 512,
     cacheKey: String? = null,
+    albumId: Long? = null,
 ): ImageBitmap? {
     val context = LocalContext.current
     val id = mediaId
-    val key = if (id == null) null else "${cacheKey ?: id}@$targetPx"
+    val album = albumId?.takeIf { it != 0L }
+    val key = if (id == null && album == null) {
+        null
+    } else {
+        "${cacheKey ?: id}${album?.let { "@a$it" }.orEmpty()}@$targetPx"
+    }
     return produceState<ImageBitmap?>(initialValue = null, key) {
         value = null
-        if (id == null || key == null) return@produceState
+        if (key == null) return@produceState
 
         artworkCache.get(key)?.let {
             value = it.asImageBitmap()
@@ -44,7 +58,8 @@ fun rememberAlbumArt(
         }
 
         val decoded = withContext(Dispatchers.IO) {
-            decodeEmbeddedArt(context, id, targetPx)
+            id?.let { decodeEmbeddedArt(context, it, targetPx) }
+                ?: album?.let { decodeStoredArt(context, it, targetPx) }
         }
         if (decoded != null) artworkCache.put(key, decoded)
         value = decoded?.asImageBitmap()
@@ -81,5 +96,34 @@ private fun decodeEmbeddedArt(context: Context, mediaId: String, targetPx: Int):
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     } finally {
         runCatching { retriever.release() }
+    }
+}.getOrNull()
+
+/** Where the device keeps the cover it found for an album. */
+private val ALBUM_ART_URI: Uri = Uri.parse("content://media/external/audio/albumart")
+
+/**
+ * The cover the device indexed for [albumId], which is where art kept beside the music
+ * turns up. Wrapped, because a device that does not answer on this path should cost a
+ * placeholder, not a crash.
+ */
+private fun decodeStoredArt(context: Context, albumId: Long, targetPx: Int): Bitmap? = runCatching {
+    val uri = ContentUris.withAppendedId(ALBUM_ART_URI, albumId)
+
+    // Two passes again, so a large cover is not decoded whole only to be shrunk.
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, bounds)
+    } ?: return@runCatching null
+
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+
+    var sampleSize = 1
+    val longestEdge = maxOf(bounds.outWidth, bounds.outHeight)
+    while (longestEdge / (sampleSize * 2) >= targetPx) sampleSize *= 2
+
+    val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, options)
     }
 }.getOrNull()

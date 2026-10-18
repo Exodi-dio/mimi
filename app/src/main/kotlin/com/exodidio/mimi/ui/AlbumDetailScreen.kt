@@ -63,7 +63,11 @@ fun AlbumDetailScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Artwork(
-                bitmap = rememberAlbumArt(tracks.firstOrNull()?.contentUri, targetPx = 512),
+                bitmap = rememberAlbumArt(
+                    tracks.firstOrNull()?.contentUri,
+                    targetPx = 512,
+                    albumId = albumId,
+                ),
                 modifier = Modifier.size(120.dp),
                 shape = RoundedCornerShape(8.dp),
                 iconSize = 40.dp,
