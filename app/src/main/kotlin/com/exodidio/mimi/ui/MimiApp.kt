@@ -41,6 +41,7 @@ fun MimiApp() {
     val libraryViewModel: LibraryViewModel = viewModel()
     val playerViewModel: PlayerViewModel = viewModel()
     val navigator: NavigationViewModel = viewModel()
+    val settingsViewModel: SettingsViewModel = viewModel()
 
     val tracks by libraryViewModel.tracks.collectAsStateWithLifecycle()
     val albums by libraryViewModel.albums.collectAsStateWithLifecycle()
@@ -52,6 +53,7 @@ fun MimiApp() {
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 
@@ -143,6 +145,8 @@ fun MimiApp() {
                             )
 
                             Screen.Settings -> SettingsScreen(
+                                settings = settings,
+                                onChange = settingsViewModel::change,
                                 trackCount = tracks.size,
                                 scanning = scanning,
                                 onRescan = { libraryViewModel.refresh(force = true) },

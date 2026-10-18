@@ -1,31 +1,243 @@
 package com.exodidio.mimi.ui
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.exodidio.mimi.library.MinSongLength
+import com.exodidio.mimi.library.Settings
+import com.exodidio.mimi.library.ThemeMode
 
+/** The pages of the settings screen. */
+private enum class SettingsTab(val label: String) {
+    LIBRARY("Library"),
+    PLAYBACK("Playback"),
+    APPEARANCE("Appearance"),
+    ABOUT("About"),
+}
+
+/** Which question, if any, is currently open in a dialog. */
+private enum class SettingsChoice { MIN_LENGTH, THEME }
+
+/**
+ * Settings, split into pages.
+ *
+ * Split rather than listed because a settings screen that grows one row at a time becomes
+ * unusable long before it becomes complete. Four pages is the shape where every row sits
+ * under a heading somebody would look for it under, and it is the shape a skin can restyle
+ * without reordering anything.
+ *
+ * Each change is a function from the current settings to the next, so this screen never
+ * has to know what the values are — it only has to know what it is changing.
+ */
 @Composable
 fun SettingsScreen(
+    settings: Settings,
+    onChange: ((Settings) -> Settings) -> Unit,
     trackCount: Int,
     scanning: Boolean,
     onRescan: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var tab by rememberSaveable { mutableStateOf(SettingsTab.LIBRARY) }
+    var openChoice by remember { mutableStateOf<SettingsChoice?>(null) }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        ScreenHeader(title = "Settings")
+        PillRow(
+            options = SettingsTab.entries,
+            selected = tab,
+            label = { it.label },
+            onSelect = { tab = it },
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            when (tab) {
+                SettingsTab.LIBRARY -> LibraryPage(
+                    settings = settings,
+                    onChange = onChange,
+                    trackCount = trackCount,
+                    scanning = scanning,
+                    onRescan = onRescan,
+                    onChooseLength = { openChoice = SettingsChoice.MIN_LENGTH },
+                )
+
+                SettingsTab.PLAYBACK -> PlaybackPage(settings = settings, onChange = onChange)
+
+                SettingsTab.APPEARANCE -> AppearancePage(
+                    settings = settings,
+                    onChange = onChange,
+                    onChooseTheme = { openChoice = SettingsChoice.THEME },
+                )
+
+                SettingsTab.ABOUT -> AboutPage()
+            }
+            SettingsPageFooter()
+        }
+    }
+
+    when (openChoice) {
+        SettingsChoice.MIN_LENGTH -> ChoiceDialog(
+            title = "Shortest song to show",
+            options = MinSongLength.entries.map { it.label },
+            selectedIndex = settings.minSongLength.ordinal,
+            onPick = { index ->
+                onChange { it.copy(minSongLength = MinSongLength.entries[index]) }
+                openChoice = null
+            },
+            onDismiss = { openChoice = null },
+        )
+
+        SettingsChoice.THEME -> ChoiceDialog(
+            title = "Theme",
+            options = ThemeMode.entries.map { it.label() },
+            selectedIndex = settings.themeMode.ordinal,
+            onPick = { index ->
+                onChange { it.copy(themeMode = ThemeMode.entries[index]) }
+                openChoice = null
+            },
+            onDismiss = { openChoice = null },
+        )
+
+        null -> Unit
+    }
+}
+
+@Composable
+private fun LibraryPage(
+    settings: Settings,
+    onChange: ((Settings) -> Settings) -> Unit,
+    trackCount: Int,
+    scanning: Boolean,
+    onRescan: () -> Unit,
+    onChooseLength: () -> Unit,
+) {
+    SettingsSectionHeading("Finding music")
+    SettingsToggleRow(
+        title = "Scan when the app opens",
+        subtitle = "Looks for new music when you come back to it.",
+        checked = settings.scanOnLaunch,
+        onCheckedChange = { value -> onChange { it.copy(scanOnLaunch = value) } },
+    )
+    SettingsToggleRow(
+        title = "Watch for changes",
+        subtitle = "Rescans shortly after files appear or disappear on the device.",
+        checked = settings.watchForChanges,
+        onCheckedChange = { value -> onChange { it.copy(watchForChanges = value) } },
+    )
+    SettingsChoiceRow(
+        title = "Shortest song shown",
+        subtitle = "Keeps ringtones and voice notes out of the library.",
+        value = settings.minSongLength.label,
+        onClick = onChooseLength,
+    )
+    if (settings.minSongLength != MinSongLength.ANY) {
+        SettingsNote(
+            "Changing this rebuilds the library, which takes a moment on a large collection."
+        )
+    }
+
+    HorizontalDivider(
+        modifier = Modifier.padding(top = 12.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+    SettingsSectionHeading("On this device")
+    SettingsInfoRow(title = "Songs", value = songCountLabel(trackCount))
+    SettingsActionRow(
+        title = "Rescan library",
+        subtitle = if (scanning) "Looking…" else "Look for new music now.",
+        enabled = !scanning,
+        onClick = onRescan,
+    )
+    SettingsInfoRow(title = "Played from", value = "This device")
+}
+
+@Composable
+private fun PlaybackPage(
+    settings: Settings,
+    onChange: ((Settings) -> Settings) -> Unit,
+) {
+    SettingsSectionHeading("Behaviour")
+    SettingsToggleRow(
+        title = "Resume where you left off",
+        subtitle = "Opens on the last song you heard, paused where it stopped.",
+        checked = settings.resumeSession,
+        onCheckedChange = { value -> onChange { it.copy(resumeSession = value) } },
+    )
+    SettingsToggleRow(
+        title = "Pause when headphones unplug",
+        subtitle = "Rather than carrying on through the speaker.",
+        checked = settings.pauseOnDisconnect,
+        onCheckedChange = { value -> onChange { it.copy(pauseOnDisconnect = value) } },
+    )
+    SettingsToggleRow(
+        title = "Skip silent passages",
+        subtitle = "Steps over long silences inside a track.",
+        checked = settings.skipSilence,
+        onCheckedChange = { value -> onChange { it.copy(skipSilence = value) } },
+    )
+
+    HorizontalDivider(
+        modifier = Modifier.padding(top = 12.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+    SettingsSectionHeading("The player")
+    SettingsToggleRow(
+        title = "Count down instead of up",
+        subtitle = "Shows the time remaining rather than the time played.",
+        checked = settings.showRemainingTime,
+        onCheckedChange = { value -> onChange { it.copy(showRemainingTime = value) } },
+    )
+}
+
+@Composable
+private fun AppearancePage(
+    settings: Settings,
+    onChange: ((Settings) -> Settings) -> Unit,
+    onChooseTheme: () -> Unit,
+) {
+    SettingsSectionHeading("Theme")
+    SettingsChoiceRow(
+        title = "Theme",
+        value = settings.themeMode.label(),
+        onClick = onChooseTheme,
+    )
+
+    HorizontalDivider(
+        modifier = Modifier.padding(top = 12.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+    SettingsSectionHeading("Lists")
+    SettingsToggleRow(
+        title = "Show cover art",
+        subtitle = "Draws the cover beside each song in a list.",
+        checked = settings.showArtwork,
+        onCheckedChange = { value -> onChange { it.copy(showArtwork = value) } },
+    )
+    SettingsNote("These are the choices the new look will read from.")
+}
+
+@Composable
+private fun AboutPage() {
     val context = LocalContext.current
     val version = remember(context) {
         runCatching {
@@ -33,66 +245,18 @@ fun SettingsScreen(
         }.getOrNull() ?: "dev"
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        ScreenHeader(title = "Settings")
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-        ) {
-            SectionHeading("Library")
-            SettingsRow(label = "Songs", value = songCountLabel(trackCount))
-            SettingsRow(label = "Source", value = "On this device")
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onRescan, enabled = !scanning) {
-                Text(if (scanning) "Scanning\u2026" else "Rescan library")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            SectionHeading("About")
-            SettingsRow(label = "Version", value = version)
-            SettingsRow(label = "Licence", value = "GPL-3.0")
-            Text(
-                text = "Plays files already on this device. No account, no ads, no network.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionHeading(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 20.dp, bottom = 8.dp),
+    SettingsSectionHeading("Mimi")
+    SettingsInfoRow(title = "Version", value = version)
+    SettingsInfoRow(title = "Licence", value = "GPL-3.0")
+    SettingsInfoRow(title = "Built with", value = "Media3, Compose and Room")
+    SettingsNote(
+        "Plays the files already on this device. No account, no adverts, and nothing sent " +
+            "anywhere. Lyrics are read out of the files themselves."
     )
 }
 
-@Composable
-private fun SettingsRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+private fun ThemeMode.label(): String = when (this) {
+    ThemeMode.SYSTEM -> "Follow the phone"
+    ThemeMode.LIGHT -> "Light"
+    ThemeMode.DARK -> "Dark"
 }

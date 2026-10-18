@@ -47,6 +47,8 @@ data class Settings(
     val skipSilence: Boolean = false,
     /** Count down the time left instead of counting up the time played. */
     val showRemainingTime: Boolean = false,
+    /** Draw the cover art beside each song in a list. */
+    val showArtwork: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
 ) {
     companion object {
@@ -64,6 +66,7 @@ data class Settings(
         private const val PAUSE_ON_DISCONNECT = "setting.pause_on_disconnect"
         private const val SKIP_SILENCE = "setting.skip_silence"
         private const val SHOW_REMAINING_TIME = "setting.show_remaining_time"
+        private const val SHOW_ARTWORK = "setting.show_artwork"
         private const val THEME_MODE = "setting.theme_mode"
 
         /**
@@ -86,6 +89,7 @@ data class Settings(
                 pauseOnDisconnect = stored.boolean(PAUSE_ON_DISCONNECT, defaults.pauseOnDisconnect),
                 skipSilence = stored.boolean(SKIP_SILENCE, defaults.skipSilence),
                 showRemainingTime = stored.boolean(SHOW_REMAINING_TIME, defaults.showRemainingTime),
+                showArtwork = stored.boolean(SHOW_ARTWORK, defaults.showArtwork),
                 themeMode = stored[THEME_MODE]
                     ?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
                     ?: defaults.themeMode,
@@ -101,6 +105,7 @@ data class Settings(
             MetaEntry(PAUSE_ON_DISCONNECT, if (settings.pauseOnDisconnect) "1" else "0"),
             MetaEntry(SKIP_SILENCE, if (settings.skipSilence) "1" else "0"),
             MetaEntry(SHOW_REMAINING_TIME, if (settings.showRemainingTime) "1" else "0"),
+            MetaEntry(SHOW_ARTWORK, if (settings.showArtwork) "1" else "0"),
             MetaEntry(THEME_MODE, settings.themeMode.name),
         )
 
