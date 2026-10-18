@@ -6,10 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.exodidio.mimi.MimiApplication
 import com.exodidio.mimi.library.AlbumSummary
 import com.exodidio.mimi.library.ArtistSummary
+import com.exodidio.mimi.library.ComposerSummary
+import com.exodidio.mimi.library.FolderSummary
+import com.exodidio.mimi.library.GenreSummary
 import com.exodidio.mimi.library.LibraryChangeObserver
 import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.library.YearSummary
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +57,60 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun tracksForArtist(artist: String): Flow<List<Track>> = library.tracksForArtist(artist)
 
     fun albumsForArtist(artist: String): Flow<List<AlbumSummary>> = library.albumsForArtist(artist)
+
+    val genres: StateFlow<List<GenreSummary>> = library.genres.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
+
+    val composers: StateFlow<List<ComposerSummary>> = library.composers.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
+
+    val years: StateFlow<List<YearSummary>> = library.years.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
+
+    val folders: StateFlow<List<FolderSummary>> = library.folders.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
+
+    fun tracksInGenre(genre: String): Flow<List<Track>> = library.tracksInGenre(genre)
+
+    fun tracksByComposer(composer: String): Flow<List<Track>> = library.tracksByComposer(composer)
+
+    fun tracksInYear(year: Int): Flow<List<Track>> = library.tracksInYear(year)
+
+    fun tracksInFolder(folder: String): Flow<List<Track>> = library.tracksInFolder(folder)
+
+    /** What the home screen shows: a handful each, newest and most played first. */
+    val recentlyAdded: StateFlow<List<Track>> =
+        library.recentlyAdded(HOME_SECTION_LIMIT).stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    val recentlyPlayed: StateFlow<List<Track>> =
+        library.recentlyPlayed(HOME_SECTION_LIMIT).stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    val mostPlayed: StateFlow<List<Track>> =
+        library.mostPlayed(HOME_SECTION_LIMIT).stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
     private val _query = MutableStateFlow("")
 
@@ -181,5 +239,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 _scanning.value = false
             }
         }
+    }
+
+    private companion object {
+        const val HOME_SECTION_LIMIT = 20
     }
 }

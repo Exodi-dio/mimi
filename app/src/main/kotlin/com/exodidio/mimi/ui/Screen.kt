@@ -9,7 +9,10 @@ package com.exodidio.mimi.ui
  */
 sealed interface Screen {
 
-    /** The library. Its four sections — songs, albums, artists, playlists — are switched inside it. */
+    /** What the app opens on: what is new, what was played, what gets played most. */
+    data object Home : Screen
+
+    /** The library. Its sections — songs, albums, artists and the rest — are switched inside it. */
     data object Library : Screen
 
     /** Only the songs marked as loved, which is a place of its own rather than a section. */
@@ -24,4 +27,12 @@ sealed interface Screen {
     data class ArtistDetail(val artist: String) : Screen
 
     data class PlaylistDetail(val playlistId: Long) : Screen
+
+    data class GenreDetail(val genre: String) : Screen
+
+    data class ComposerDetail(val composer: String) : Screen
+
+    data class YearDetail(val year: Int) : Screen
+
+    data class FolderDetail(val folder: String) : Screen
 }

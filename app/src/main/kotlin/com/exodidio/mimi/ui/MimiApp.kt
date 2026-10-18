@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.Heart
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
@@ -143,6 +144,7 @@ private fun MimiAppContent() {
                                 onOpenArtist = { navigator.push(Screen.ArtistDetail(it.artist)) },
                                 onOpenPlaylist = { navigator.push(Screen.PlaylistDetail(it.id)) },
                                 onCreatePlaylist = { creatingPlaylist = true },
+                                onOpenScreen = { navigator.push(it) },
                             )
 
                             Screen.Loved -> LovedScreen(
@@ -221,6 +223,69 @@ private fun MimiAppContent() {
                                     },
                                     onRename = { renameTarget = playlist },
                                     onDelete = { deleteTarget = playlist },
+                                )
+                            }
+
+                            is Screen.GenreDetail -> TrackListScreen(
+                                title = screen.genre,
+                                tracks = tracksOf(screen.genre, libraryViewModel::tracksInGenre),
+                                playingMediaId = playingMediaId,
+                                favoriteIds = favoriteIds,
+                                onBack = navigator::pop,
+                                onPlay = { list, index -> playerViewModel.play(list, index) },
+                                onToggleLove = libraryViewModel::toggleLoved,
+                                onPlayNext = playerViewModel::playNext,
+                                onAddToQueue = playerViewModel::addToQueue,
+                                onAddToPlaylist = { addTarget = it },
+                                emptyMessage = "No songs are filed under this genre.",
+                            )
+
+                            is Screen.ComposerDetail -> TrackListScreen(
+                                title = screen.composer,
+                                tracks = tracksOf(screen.composer, libraryViewModel::tracksByComposer),
+                                playingMediaId = playingMediaId,
+                                favoriteIds = favoriteIds,
+                                onBack = navigator::pop,
+                                onPlay = { list, index -> playerViewModel.play(list, index) },
+                                onToggleLove = libraryViewModel::toggleLoved,
+                                onPlayNext = playerViewModel::playNext,
+                                onAddToQueue = playerViewModel::addToQueue,
+                                onAddToPlaylist = { addTarget = it },
+                                emptyMessage = "No songs are credited to this composer.",
+                            )
+
+                            is Screen.YearDetail -> TrackListScreen(
+                                title = screen.year.toString(),
+                                tracks = tracksOf(screen.year, libraryViewModel::tracksInYear),
+                                playingMediaId = playingMediaId,
+                                favoriteIds = favoriteIds,
+                                onBack = navigator::pop,
+                                onPlay = { list, index -> playerViewModel.play(list, index) },
+                                onToggleLove = libraryViewModel::toggleLoved,
+                                onPlayNext = playerViewModel::playNext,
+                                onAddToQueue = playerViewModel::addToQueue,
+                                onAddToPlaylist = { addTarget = it },
+                                emptyMessage = "No songs are tagged with this year.",
+                            )
+
+                            is Screen.FolderDetail -> {
+                                val name = screen.folder.substringAfterLast('/').ifEmpty { screen.folder }
+                                TrackListScreen(
+                                    title = name,
+                                    // The whole path, because two folders can share a last
+                                    // segment. Falls back to the song count when it is just
+                                    // the folder's own name again.
+                                    subtitle = screen.folder.takeIf { it != name },
+                                    tracks = tracksOf(screen.folder, libraryViewModel::tracksInFolder),
+                                    playingMediaId = playingMediaId,
+                                    favoriteIds = favoriteIds,
+                                    onBack = navigator::pop,
+                                    onPlay = { list, index -> playerViewModel.play(list, index) },
+                                    onToggleLove = libraryViewModel::toggleLoved,
+                                    onPlayNext = playerViewModel::playNext,
+                                    onAddToQueue = playerViewModel::addToQueue,
+                                    onAddToPlaylist = { addTarget = it },
+                                    emptyMessage = "This folder holds no music.",
                                 )
                             }
                         }
@@ -333,7 +398,15 @@ private fun LibraryHome(
     onOpenArtist: (com.exodidio.mimi.library.ArtistSummary) -> Unit,
     onOpenPlaylist: (PlaylistSummary) -> Unit,
     onCreatePlaylist: () -> Unit,
+    onOpenScreen: (Screen) -> Unit,
 ) {
+    // Collected here rather than passed in: these four are only ever shown in this one
+    // place, and the shell is already carrying enough lists.
+    val genres by libraryViewModel.genres.collectAsStateWithLifecycle()
+    val composers by libraryViewModel.composers.collectAsStateWithLifecycle()
+    val years by libraryViewModel.years.collectAsStateWithLifecycle()
+    val folders by libraryViewModel.folders.collectAsStateWithLifecycle()
+
     Column(modifier = Modifier.fillMaxSize()) {
         LibrarySectionSwitcher(selected = section, onSelect = onSectionChange)
 
@@ -367,6 +440,41 @@ private fun LibraryHome(
                 playlists = playlists,
                 onPlaylistClick = onOpenPlaylist,
                 onCreate = onCreatePlaylist,
+            )
+
+            LibrarySection.GENRES -> BrowseScreen(
+                title = "Genres",
+                entries = genres.genreEntries(),
+                subtitle = countLabel(genres.size, "genre"),
+                emptyMessage = "No genres are tagged in your music.",
+                onEntryClick = { onOpenScreen(Screen.GenreDetail(it.key)) },
+            )
+
+            LibrarySection.COMPOSERS -> BrowseScreen(
+                title = "Composers",
+                entries = composers.composerEntries(),
+                subtitle = countLabel(composers.size, "composer"),
+                emptyMessage = "No composers are credited in your music.",
+                onEntryClick = { onOpenScreen(Screen.ComposerDetail(it.key)) },
+            )
+
+            LibrarySection.YEARS -> BrowseScreen(
+                title = "Years",
+                entries = years.yearEntries(),
+                subtitle = countLabel(years.size, "year"),
+                emptyMessage = "No years are tagged in your music.",
+                onEntryClick = { entry ->
+                    entry.key.toIntOrNull()?.let { onOpenScreen(Screen.YearDetail(it)) }
+                },
+            )
+
+            LibrarySection.FOLDERS -> BrowseScreen(
+                title = "Folders",
+                entries = folders.folderEntries(),
+                subtitle = countLabel(folders.size, "folder"),
+                emptyMessage = "No folders were reported for your music.",
+                leadingIcon = Lucide.Folder,
+                onEntryClick = { onOpenScreen(Screen.FolderDetail(it.key)) },
             )
         }
     }

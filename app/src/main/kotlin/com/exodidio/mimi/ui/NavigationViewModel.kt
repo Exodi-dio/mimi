@@ -11,6 +11,10 @@ enum class LibrarySection(val label: String) {
     ALBUMS("Albums"),
     ARTISTS("Artists"),
     PLAYLISTS("Playlists"),
+    GENRES("Genres"),
+    COMPOSERS("Composers"),
+    YEARS("Years"),
+    FOLDERS("Folders"),
 }
 
 /**

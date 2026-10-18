@@ -74,6 +74,10 @@ fun ScreenHeader(
 /** "1 song" / "N songs", shared by every screen that counts tracks. */
 fun songCountLabel(count: Int): String = if (count == 1) "1 song" else "$count songs"
 
+/** The general form, for the groupings that only need the one wording. */
+fun countLabel(count: Int, singular: String): String =
+    if (count == 1) "1 $singular" else "$count ${singular}s"
+
 /** "1 album" / "N albums". */
 fun albumCountLabel(count: Int): String = if (count == 1) "1 album" else "$count albums"
 
