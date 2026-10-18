@@ -57,8 +57,9 @@ private class DescriptorSource(private val descriptor: ParcelFileDescriptor) : B
         val bytes = ByteArray(length)
         var total = 0
         while (total < length) {
-            val read = runCatching { Os.pread(descriptor.fileDescriptor, bytes, total, offset + total) }
-                .getOrDefault(0)
+            val read = runCatching {
+                Os.pread(descriptor.fileDescriptor, bytes, total, length - total, offset + total)
+            }.getOrDefault(0)
             if (read <= 0) break
             total += read
         }
