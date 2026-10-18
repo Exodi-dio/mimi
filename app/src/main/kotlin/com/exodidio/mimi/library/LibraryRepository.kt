@@ -33,6 +33,9 @@ class LibraryRepository(
 
     fun albumsForArtist(artist: String): Flow<List<AlbumSummary>> = trackDao.observeArtistAlbums(artist)
 
+    /** Titles, artists and albums containing [query]. Blank matches nothing, not everything. */
+    fun search(query: String): Flow<List<Track>> = trackDao.search(query)
+
     suspend fun lastScanAt(): Long = metaDao.get(KEY_LAST_SCAN)?.toLongOrNull() ?: 0L
 
     /**

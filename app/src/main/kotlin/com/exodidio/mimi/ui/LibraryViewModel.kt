@@ -7,11 +7,14 @@ import com.exodidio.mimi.MimiApplication
 import com.exodidio.mimi.library.AlbumSummary
 import com.exodidio.mimi.library.ArtistSummary
 import com.exodidio.mimi.library.Track
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -46,6 +49,32 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun tracksForArtist(artist: String): Flow<List<Track>> = library.tracksForArtist(artist)
 
     fun albumsForArtist(artist: String): Flow<List<AlbumSummary>> = library.albumsForArtist(artist)
+
+    private val _query = MutableStateFlow("")
+
+    /** What the search box holds. Kept here so it survives a trip to another tab. */
+    val query: StateFlow<String> = _query.asStateFlow()
+
+    /**
+     * Matches for the current query.
+     *
+     * A blank query matches nothing rather than everything: an empty search box that
+     * fills with the entire library reads as if the search is broken.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val searchResults: StateFlow<List<Track>> = _query
+        .flatMapLatest { text ->
+            if (text.isBlank()) flowOf(emptyList()) else library.search(text)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    fun onQueryChange(text: String) {
+        _query.value = text
+    }
 
     private val _scanning = MutableStateFlow(false)
     val scanning: StateFlow<Boolean> = _scanning.asStateFlow()

@@ -23,6 +23,7 @@ import com.composables.icons.lucide.Disc3
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MicVocal
 import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Settings
 
 @Composable
@@ -35,6 +36,8 @@ fun MimiApp() {
     val albums by libraryViewModel.albums.collectAsStateWithLifecycle()
     val artists by libraryViewModel.artists.collectAsStateWithLifecycle()
     val scanning by libraryViewModel.scanning.collectAsStateWithLifecycle()
+    val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
+    val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
@@ -81,6 +84,14 @@ fun MimiApp() {
                                 artists = artists,
                                 scanning = scanning,
                                 onArtistClick = { navigator.push(Screen.ArtistDetail(it.artist)) },
+                            )
+
+                            Screen.Search -> SearchScreen(
+                                query = searchQuery,
+                                onQueryChange = libraryViewModel::onQueryChange,
+                                results = searchResults,
+                                playingMediaId = playback.current?.mediaId,
+                                onTrackClick = { index -> playerViewModel.play(searchResults, index) },
                             )
 
                             Screen.Settings -> SettingsScreen(
@@ -140,5 +151,6 @@ private val Tabs = listOf(
     Tab(Screen.Songs, "Songs", Lucide.Music),
     Tab(Screen.Albums, "Albums", Lucide.Disc3),
     Tab(Screen.Artists, "Artists", Lucide.MicVocal),
+    Tab(Screen.Search, "Search", Lucide.Search),
     Tab(Screen.Settings, "Settings", Lucide.Settings),
 )

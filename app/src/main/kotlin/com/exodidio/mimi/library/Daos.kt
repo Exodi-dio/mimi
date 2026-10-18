@@ -94,6 +94,25 @@ interface TrackDao {
         """
     )
     fun observeArtistAlbums(artist: String): Flow<List<AlbumSummary>>
+
+    /**
+     * Substring search over the three things a person actually remembers: the title, who
+     * it is by, and which record it came from.
+     *
+     * SQLite's LIKE ignores case for ASCII by default, so "Kind" and "kind" behave alike.
+     * The sort is by title rather than by relevance: matching a rank would mean inventing
+     * one, and guessing wrong is worse than never guessing at all.
+     */
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE title LIKE '%' || :query || '%'
+           OR artist LIKE '%' || :query || '%'
+           OR album LIKE '%' || :query || '%'
+        ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC
+        """
+    )
+    fun search(query: String): Flow<List<Track>>
 }
 
 @Dao
