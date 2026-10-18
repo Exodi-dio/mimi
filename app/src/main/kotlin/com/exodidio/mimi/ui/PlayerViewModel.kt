@@ -18,6 +18,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val library = (application as MimiApplication).library
     private val store = (application as MimiApplication).settings
+    private val sleepTimer = (application as MimiApplication).sleepTimer
     private val engine: PlaybackEngine = Media3PlaybackEngine(application, viewModelScope)
 
     val state: StateFlow<PlaybackState> = engine.state
@@ -82,6 +83,27 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun moveInQueue(fromIndex: Int, toIndex: Int) = engine.moveInQueue(fromIndex, toIndex)
 
     fun removeFromQueue(index: Int) = engine.removeFromQueue(index)
+
+    /**
+     * Nudges playback by [deltaMs], kept inside the song.
+     *
+     * The step buttons are the difference between a player that is occasionally useful and
+     * one that is not, for anything long enough that finding a spot by dragging is fiddly.
+     */
+    fun seekBy(deltaMs: Long) {
+        val snapshot = engine.state.value
+        val target = (snapshot.positionMs + deltaMs).coerceAtLeast(0L)
+        engine.seekTo(if (snapshot.durationMs > 0L) target.coerceAtMost(snapshot.durationMs) else target)
+    }
+
+    fun setSpeed(speed: Float) = engine.setSpeed(speed)
+
+    /** What is left of the sleep timer, or null when it is not running. */
+    val sleepRemaining: StateFlow<Long?> = sleepTimer.remaining
+
+    fun startSleepTimer(durationMs: Long) = sleepTimer.start(durationMs)
+
+    fun cancelSleepTimer() = sleepTimer.cancel()
 
     override fun onCleared() {
         engine.release()

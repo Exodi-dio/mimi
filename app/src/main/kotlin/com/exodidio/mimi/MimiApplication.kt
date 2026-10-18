@@ -5,8 +5,15 @@ import com.exodidio.mimi.library.LibraryRepository
 import com.exodidio.mimi.library.MimiDatabase
 import com.exodidio.mimi.library.SettingsStore
 import com.exodidio.mimi.lyrics.LyricsLoader
+import com.exodidio.mimi.playback.SleepTimer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class MimiApplication : Application() {
+
+    /** Outlives every screen, which is what the sleep timer needs. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val database: MimiDatabase by lazy { MimiDatabase.get(this) }
 
@@ -19,4 +26,7 @@ class MimiApplication : Application() {
      * and kept, rather than re-read every time the player is opened.
      */
     val lyrics: LyricsLoader by lazy { LyricsLoader(this) }
+
+    /** The countdown that stops the music, kept where the screen cannot end it. */
+    val sleepTimer: SleepTimer by lazy { SleepTimer(scope) }
 }

@@ -143,6 +143,10 @@ class Media3PlaybackEngine(
         controller?.repeatMode = mode.toPlayerRepeatMode()
     }
 
+    override fun setSpeed(speed: Float) {
+        controller?.setPlaybackSpeed(speed.coerceIn(MIN_SPEED, MAX_SPEED))
+    }
+
     override fun playNext(track: Track) {
         val player = controller ?: return
         // Straight after whatever is playing, so it survives the current track ending
@@ -215,6 +219,7 @@ class Media3PlaybackEngine(
             durationMs = if (duration > 0L) duration else 0L,
             shuffleEnabled = player.shuffleModeEnabled,
             repeatMode = player.repeatMode.toRepeatMode(),
+            speed = player.playbackParameters.speed.coerceIn(MIN_SPEED, MAX_SPEED),
             queue = cachedQueue,
             currentIndex = if (player.mediaItemCount == 0) -1 else player.currentMediaItemIndex,
         )
@@ -248,6 +253,10 @@ class Media3PlaybackEngine(
     private companion object {
         const val TICK_MS = 500L
         const val UNKNOWN_TITLE = "Unknown title"
+
+        /** Anything slower is unintelligible; anything faster stops being music. */
+        const val MIN_SPEED = 0.5f
+        const val MAX_SPEED = 3f
     }
 }
 

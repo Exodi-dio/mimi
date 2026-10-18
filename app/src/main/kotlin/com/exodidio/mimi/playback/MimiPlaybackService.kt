@@ -39,6 +39,12 @@ class MimiPlaybackService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, player).build()
 
+        // The sleep timer counts somewhere that outlives the screen; stopping is something
+        // only the player can carry out, so it is handed the job once the player exists.
+        (application as MimiApplication).sleepTimer.onElapsed = {
+            if (player.isPlaying) player.pause()
+        }
+
         // These two settings steer the player itself, and the player lives here rather than
         // in the app's ViewModel, so they are applied where it is. Collecting rather than
         // reading once means changing either takes effect on the next song at the latest,

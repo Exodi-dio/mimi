@@ -39,6 +39,8 @@ data class PlaybackState(
     val durationMs: Long = 0L,
     val shuffleEnabled: Boolean = false,
     val repeatMode: RepeatMode = RepeatMode.OFF,
+    /** How fast the music runs, as a multiple of normal speed. */
+    val speed: Float = 1f,
     /** Everything loaded, in play order. [current] is this list at [currentIndex]. */
     val queue: List<QueueItem> = emptyList(),
     /** Where [current] sits in [queue], or -1 when nothing is loaded. */
@@ -72,6 +74,9 @@ interface PlaybackEngine {
     fun seekTo(positionMs: Long)
     fun setShuffle(enabled: Boolean)
     fun setRepeat(mode: RepeatMode)
+
+    /** How fast to play, as a multiple of normal speed. */
+    fun setSpeed(speed: Float)
 
     /** Puts [track] straight after the one playing, without interrupting it. */
     fun playNext(track: Track)
