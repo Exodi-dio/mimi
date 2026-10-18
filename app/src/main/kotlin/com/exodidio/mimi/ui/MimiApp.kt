@@ -24,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.Heart
+import com.composables.icons.lucide.House
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Search
@@ -75,6 +76,9 @@ private fun MimiAppContent() {
     val playlists by libraryViewModel.playlists.collectAsStateWithLifecycle()
     val lovedTracks by libraryViewModel.lovedTracks.collectAsStateWithLifecycle()
     val favoriteIds by libraryViewModel.favoriteIds.collectAsStateWithLifecycle()
+    val recentlyAdded by libraryViewModel.recentlyAdded.collectAsStateWithLifecycle()
+    val recentlyPlayed by libraryViewModel.recentlyPlayed.collectAsStateWithLifecycle()
+    val mostPlayed by libraryViewModel.mostPlayed.collectAsStateWithLifecycle()
     val scanning by libraryViewModel.scanning.collectAsStateWithLifecycle()
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
@@ -125,6 +129,15 @@ private fun MimiAppContent() {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Box(modifier = Modifier.weight(1f)) {
                         when (screen) {
+                            Screen.Home -> HomeScreen(
+                                recentlyAdded = recentlyAdded,
+                                recentlyPlayed = recentlyPlayed,
+                                mostPlayed = mostPlayed,
+                                hasLibrary = tracks.isNotEmpty(),
+                                onShuffleAll = { playerViewModel.shuffleAll(tracks) },
+                                onTrackClick = { list, index -> playerViewModel.play(list, index) },
+                            )
+
                             Screen.Library -> LibraryHome(
                                 libraryViewModel = libraryViewModel,
                                 section = navigator.librarySection,
@@ -483,6 +496,7 @@ private fun LibraryHome(
 private class Tab(val screen: Screen, val label: String, val icon: ImageVector)
 
 private val Tabs = listOf(
+    Tab(Screen.Home, "Home", Lucide.House),
     Tab(Screen.Library, "Library", Lucide.Music),
     Tab(Screen.Loved, "Loved", Lucide.Heart),
     Tab(Screen.Search, "Search", Lucide.Search),

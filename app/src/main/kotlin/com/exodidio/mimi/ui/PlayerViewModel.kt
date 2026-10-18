@@ -63,6 +63,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun addToQueue(track: Track) = engine.addToQueue(track)
 
+    /**
+     * Plays the whole library at random.
+     *
+     * Shuffle is turned on and playback starts at an arbitrary entry rather than a
+     * shuffled copy of the list: the queue then holds every song in its real order, so the
+     * up-next panel keeps showing what is genuinely loaded, and turning shuffle off
+     * mid-listen lands somewhere sensible instead of on a reshuffled ghost.
+     */
+    fun shuffleAll(tracks: List<Track>) {
+        if (tracks.isEmpty()) return
+        engine.setShuffle(true)
+        play(tracks, tracks.indices.random())
+    }
+
     fun jumpToQueueItem(index: Int) = engine.jumpToQueueItem(index)
 
     fun moveInQueue(fromIndex: Int, toIndex: Int) = engine.moveInQueue(fromIndex, toIndex)

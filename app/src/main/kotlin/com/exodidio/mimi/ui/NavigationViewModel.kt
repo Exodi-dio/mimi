@@ -30,7 +30,7 @@ enum class LibrarySection(val label: String) {
  */
 class NavigationViewModel : ViewModel() {
 
-    var stack by mutableStateOf<List<Screen>>(listOf(Screen.Library))
+    var stack by mutableStateOf<List<Screen>>(listOf(Screen.Home))
         private set
 
     var librarySection by mutableStateOf(LibrarySection.SONGS)
