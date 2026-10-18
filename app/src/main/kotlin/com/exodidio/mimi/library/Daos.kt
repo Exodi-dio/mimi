@@ -26,6 +26,74 @@ interface TrackDao {
 
     @Query("DELETE FROM tracks")
     suspend fun deleteAll()
+
+    /**
+     * Albums, derived on demand.
+     *
+     * `MIN(artist)` picks one name to represent the album: tracks on a compilation can
+     * disagree, and something has to be printed under the cover.
+     */
+    @Query(
+        """
+        SELECT album_id AS album_id,
+               album AS album,
+               MIN(artist) AS artist,
+               COUNT(*) AS track_count,
+               MIN(content_uri) AS artwork_uri
+        FROM tracks
+        WHERE album IS NOT NULL AND TRIM(album) != ''
+        GROUP BY album_id
+        ORDER BY album COLLATE NOCASE ASC
+        """
+    )
+    fun observeAlbums(): Flow<List<AlbumSummary>>
+
+    @Query(
+        """
+        SELECT artist AS artist,
+               COUNT(*) AS track_count,
+               COUNT(DISTINCT album_id) AS album_count
+        FROM tracks
+        WHERE artist IS NOT NULL AND TRIM(artist) != ''
+        GROUP BY artist
+        ORDER BY artist COLLATE NOCASE ASC
+        """
+    )
+    fun observeArtists(): Flow<List<ArtistSummary>>
+
+    /** Album running order: track number first, with title as the tie-break. */
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE album_id = :albumId
+        ORDER BY track_number ASC, title COLLATE NOCASE ASC
+        """
+    )
+    fun observeAlbumTracks(albumId: Long): Flow<List<Track>>
+
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE artist = :artist
+        ORDER BY album COLLATE NOCASE ASC, track_number ASC, title COLLATE NOCASE ASC
+        """
+    )
+    fun observeArtistTracks(artist: String): Flow<List<Track>>
+
+    @Query(
+        """
+        SELECT album_id AS album_id,
+               album AS album,
+               MIN(artist) AS artist,
+               COUNT(*) AS track_count,
+               MIN(content_uri) AS artwork_uri
+        FROM tracks
+        WHERE artist = :artist AND album IS NOT NULL AND TRIM(album) != ''
+        GROUP BY album_id
+        ORDER BY album COLLATE NOCASE ASC
+        """
+    )
+    fun observeArtistAlbums(artist: String): Flow<List<AlbumSummary>>
 }
 
 @Dao
