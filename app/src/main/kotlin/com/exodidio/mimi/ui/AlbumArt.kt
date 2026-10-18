@@ -20,14 +20,23 @@ import kotlinx.coroutines.withContext
  *
  * Reading the tag straight from the file keeps this working entirely offline and
  * independent of what MediaStore chose to index.
+ *
+ * [cacheKey] lets several callers share one decode. Every song in an album carries the
+ * same cover, and a scrolling list asks for all of them, so the songs list keys by album
+ * rather than by file and pays for one read instead of ten.
  */
 @Composable
-fun rememberAlbumArt(mediaId: String?, targetPx: Int = 512): ImageBitmap? {
+fun rememberAlbumArt(
+    mediaId: String?,
+    targetPx: Int = 512,
+    cacheKey: String? = null,
+): ImageBitmap? {
     val context = LocalContext.current
-    return produceState<ImageBitmap?>(initialValue = null, mediaId, targetPx) {
+    val id = mediaId
+    val key = if (id == null) null else "${cacheKey ?: id}@$targetPx"
+    return produceState<ImageBitmap?>(initialValue = null, key) {
         value = null
-        val id = mediaId ?: return@produceState
-        val key = "$id@$targetPx"
+        if (id == null || key == null) return@produceState
 
         artworkCache.get(key)?.let {
             value = it.asImageBitmap()

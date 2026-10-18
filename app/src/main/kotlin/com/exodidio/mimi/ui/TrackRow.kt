@@ -3,8 +3,12 @@ package com.exodidio.mimi.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,13 +29,24 @@ fun TrackRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Songs that name no album share the "unknown album" id, so they key on the file
+    // itself rather than on an album they do not have.
+    val artKey = track.albumId.takeIf { it != 0L }?.let { "album:$it" }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Artwork(
+            bitmap = rememberAlbumArt(track.contentUri, targetPx = 128, cacheKey = artKey),
+            modifier = Modifier.size(44.dp),
+            shape = RoundedCornerShape(4.dp),
+            iconSize = 20.dp,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title,
@@ -55,6 +70,7 @@ fun TrackRow(
                 )
             }
         }
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = formatDuration(track.durationMs),
             style = MaterialTheme.typography.labelMedium,
