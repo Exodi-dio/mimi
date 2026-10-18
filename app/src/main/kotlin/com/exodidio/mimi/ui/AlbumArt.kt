@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.util.LruCache
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.ImageBitmap
@@ -26,10 +27,30 @@ fun rememberAlbumArt(mediaId: String?, targetPx: Int = 512): ImageBitmap? {
     return produceState<ImageBitmap?>(initialValue = null, mediaId, targetPx) {
         value = null
         val id = mediaId ?: return@produceState
-        value = withContext(Dispatchers.IO) {
+        val key = "$id@$targetPx"
+
+        artworkCache.get(key)?.let {
+            value = it.asImageBitmap()
+            return@produceState
+        }
+
+        val decoded = withContext(Dispatchers.IO) {
             decodeEmbeddedArt(context, id, targetPx)
-        }?.asImageBitmap()
+        }
+        if (decoded != null) artworkCache.put(key, decoded)
+        value = decoded?.asImageBitmap()
     }.value
+}
+
+/**
+ * Album grids ask for the same cover from several rows and re-ask on every scroll, and
+ * each decode opens the file and walks its tags. Caching the bitmap is the difference
+ * between a grid that scrolls and one that stutters.
+ */
+private val artworkCache = object : LruCache<String, Bitmap>(
+    (Runtime.getRuntime().maxMemory() / 8).toInt(),
+) {
+    override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
 }
 
 private fun decodeEmbeddedArt(context: Context, mediaId: String, targetPx: Int): Bitmap? = runCatching {
