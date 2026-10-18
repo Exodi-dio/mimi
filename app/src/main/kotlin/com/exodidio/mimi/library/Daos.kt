@@ -124,3 +124,89 @@ interface MetaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(entry: MetaEntry)
 }
+
+/**
+ * Loved songs.
+ *
+ * Reads join against `tracks` rather than storing a copy of the song, so a rescan
+ * cannot leave a loved entry describing a file that has gone.
+ */
+@Dao
+interface FavoriteDao {
+
+    @Query("SELECT track_id FROM favorites")
+    fun observeIds(): Flow<List<Long>>
+
+    /** Most recently loved first, which is the order the user built it in. */
+    @Query(
+        """
+        SELECT tracks.* FROM tracks
+        INNER JOIN favorites ON favorites.track_id = tracks.id
+        ORDER BY favorites.added_at DESC
+        """
+    )
+    fun observeLoved(): Flow<List<Track>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun add(favorite: Favorite)
+
+    @Query("DELETE FROM favorites WHERE track_id = :trackId")
+    suspend fun remove(trackId: Long)
+}
+
+/**
+ * Playlists and their contents.
+ *
+ * Every read of a playlist's songs goes through a join against `tracks`, so a song that
+ * no longer exists on the device drops out on its own.
+ */
+@Dao
+interface PlaylistDao {
+
+    @Query(
+        """
+        SELECT p.id AS id,
+               p.name AS name,
+               (SELECT COUNT(*) FROM playlist_entries e WHERE e.playlist_id = p.id) AS track_count
+        FROM playlists p
+        ORDER BY p.name COLLATE NOCASE ASC
+        """
+    )
+    fun observePlaylists(): Flow<List<PlaylistSummary>>
+
+    /** Playlist running order. Songs missing from the device are simply not joined in. */
+    @Query(
+        """
+        SELECT tracks.* FROM tracks
+        INNER JOIN playlist_entries ON playlist_entries.track_id = tracks.id
+        WHERE playlist_entries.playlist_id = :playlistId
+        ORDER BY playlist_entries.position ASC
+        """
+    )
+    fun observePlaylistTracks(playlistId: Long): Flow<List<Track>>
+
+    @Insert
+    suspend fun insertPlaylist(playlist: Playlist): Long
+
+    @Query("UPDATE playlists SET name = :name WHERE id = :playlistId")
+    suspend fun rename(playlistId: Long, name: String)
+
+    @Query("DELETE FROM playlists WHERE id = :playlistId")
+    suspend fun deletePlaylist(playlistId: Long)
+
+    /** Deleted first and explicitly rather than leaning on the foreign key cascade. */
+    @Query("DELETE FROM playlist_entries WHERE playlist_id = :playlistId")
+    suspend fun deleteEntries(playlistId: Long)
+
+    @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_entries WHERE playlist_id = :playlistId")
+    suspend fun nextPosition(playlistId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM playlist_entries WHERE playlist_id = :playlistId AND track_id = :trackId")
+    suspend fun entryCount(playlistId: Long, trackId: Long): Int
+
+    @Insert
+    suspend fun insertEntry(entry: PlaylistEntry)
+
+    @Query("DELETE FROM playlist_entries WHERE playlist_id = :playlistId AND track_id = :trackId")
+    suspend fun removeEntry(playlistId: Long, trackId: Long)
+}

@@ -18,6 +18,8 @@ class LibraryRepository(
 ) {
     private val trackDao = database.trackDao()
     private val metaDao = database.metaDao()
+    private val favoriteDao = database.favoriteDao()
+    private val playlistDao = database.playlistDao()
 
     val tracks: Flow<List<Track>> = trackDao.observeAll()
 
@@ -35,6 +37,59 @@ class LibraryRepository(
 
     /** Titles, artists and albums containing [query]. Blank matches nothing, not everything. */
     fun search(query: String): Flow<List<Track>> = trackDao.search(query)
+
+    /** Ids of loved songs, for marking rows without loading the songs themselves. */
+    val favoriteIds: Flow<List<Long>> = favoriteDao.observeIds()
+
+    val lovedTracks: Flow<List<Track>> = favoriteDao.observeLoved()
+
+    val playlists: Flow<List<PlaylistSummary>> = playlistDao.observePlaylists()
+
+    fun tracksInPlaylist(playlistId: Long): Flow<List<Track>> = playlistDao.observePlaylistTracks(playlistId)
+
+    suspend fun setLoved(trackId: Long, loved: Boolean) {
+        if (loved) {
+            favoriteDao.add(Favorite(trackId = trackId, addedAt = System.currentTimeMillis()))
+        } else {
+            favoriteDao.remove(trackId)
+        }
+    }
+
+    /** Named after the user's input, trimmed. Returns the new playlist's id. */
+    suspend fun createPlaylist(name: String): Long =
+        playlistDao.insertPlaylist(
+            Playlist(name = name.trim(), createdAt = System.currentTimeMillis())
+        )
+
+    suspend fun renamePlaylist(playlistId: Long, name: String) =
+        playlistDao.rename(playlistId, name.trim())
+
+    suspend fun deletePlaylist(playlistId: Long) {
+        database.withTransaction {
+            playlistDao.deleteEntries(playlistId)
+            playlistDao.deletePlaylist(playlistId)
+        }
+    }
+
+    /**
+     * Appends a song to a playlist. Doing nothing when it is already there keeps a song
+     * from appearing twice in the same list.
+     */
+    suspend fun addToPlaylist(playlistId: Long, trackId: Long) {
+        database.withTransaction {
+            if (playlistDao.entryCount(playlistId, trackId) > 0) return@withTransaction
+            playlistDao.insertEntry(
+                PlaylistEntry(
+                    playlistId = playlistId,
+                    trackId = trackId,
+                    position = playlistDao.nextPosition(playlistId),
+                )
+            )
+        }
+    }
+
+    suspend fun removeFromPlaylist(playlistId: Long, trackId: Long) =
+        playlistDao.removeEntry(playlistId, trackId)
 
     suspend fun lastScanAt(): Long = metaDao.get(KEY_LAST_SCAN)?.toLongOrNull() ?: 0L
 
