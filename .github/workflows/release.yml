@@ -1,0 +1,156 @@
+name: release
+
+# Builds a signed MIMI APK and publishes it.
+#
+# Primary target is a GitHub Release on this (public) repo, because a public
+# release asset can be downloaded by anyone with the link — no GitHub account
+# needed. If a MIMI_DIST_TOKEN secret is configured, the same APK is mirrored to
+# the private Exodi-dio/mimi-dist repo as well.
+#
+# Tag a release with:  git tag v0.1.0 && git push origin v0.1.0
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, e.g. 0.1.0 (no leading v)"
+        required: true
+        default: "0.1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      MIMI_DIST_TOKEN: ${{ secrets.MIMI_DIST_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+            tag="v${version}"
+          else
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#v}"
+          fi
+          IFS='.' read -r major minor patch <<< "${version%%-*}"
+          major=${major:-0}; minor=${minor:-0}; patch=${patch:-0}
+          code=$(( major * 10000 + minor * 100 + patch ))
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "code=$code"
+            echo "MIMI_VERSION_NAME=$version"
+            echo "MIMI_VERSION_CODE=$code"
+            echo "APK_NAME=MIMI-${version}.apk"
+          } >> "$GITHUB_ENV"
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+          echo "Publishing $tag (versionName=$version versionCode=$code)"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.1
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
+      - name: Assemble signed release APK
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Collect APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find app/build/outputs/apk/release -maxdepth 1 -name "*.apk" -print)
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "Expected exactly one release APK, found ${#apks[@]}" >&2
+            printf '%s\n' "${apks[@]}" >&2
+            exit 1
+          fi
+          cp "${apks[0]}" "$APK_NAME"
+          echo "APK_PATH=$PWD/$APK_NAME" >> "$GITHUB_ENV"
+          ls -l "$APK_NAME"
+
+      - name: Verify the APK is signed with the committed beta key
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=$(keytool -list -v -keystore tools/keystore/mimi-beta.keystore -storepass mimibeta \
+            | grep -m1 "SHA256:" | tr -d ' ' | cut -d: -f2-)
+          actual=$(apksigner verify --print-certs "$APK_PATH" | grep -m1 "SHA-256 digest" | awk '{print $NF}')
+          echo "expected: $expected"
+          echo "actual:   $actual"
+          # apksigner prints colon-separated uppercase hex
+          norm_expected=$(echo "$expected" | tr -d ':' | tr 'a-f' 'A-F')
+          norm_actual=$(echo "$actual" | tr -d ':' | tr 'a-f' 'A-F')
+          if [ "$norm_expected" != "$norm_actual" ]; then
+            echo "APK is not signed with the committed beta key — updates would fail to install." >&2
+            exit 1
+          fi
+          echo "Signature matches the committed beta key."
+
+      - name: Publish release on this repo
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          prerelease=""
+          case "$version" in *-*) prerelease="--prerelease";; esac
+          gh release create "$tag" "$APK_PATH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "MIMI $version" \
+            --generate-notes \
+            $prerelease \
+            || gh release upload "$tag" "$APK_PATH" --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Mirror to private dist repo
+        if: env.MIMI_DIST_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.MIMI_DIST_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          prerelease=""
+          case "$version" in *-*) prerelease="--prerelease";; esac
+          gh release create "$tag" "$APK_PATH" \
+            --repo Exodi-dio/mimi-dist \
+            --title "MIMI $version" \
+            --generate-notes \
+            $prerelease \
+            || gh release upload "$tag" "$APK_PATH" --repo Exodi-dio/mimi-dist --clobber
+
+      - name: Skip notice
+        if: env.MIMI_DIST_TOKEN == ''
+        run: echo "MIMI_DIST_TOKEN is not set — mirrored release to mimi-dist skipped."
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "### MIMI ${version}"
+            echo
+            echo "- versionCode: ${code}"
+            echo "- asset: \`${APK_NAME}\`"
+            echo "- https://github.com/$GITHUB_REPOSITORY/releases/tag/${tag}"
+          } >> "$GITHUB_STEP_SUMMARY"
