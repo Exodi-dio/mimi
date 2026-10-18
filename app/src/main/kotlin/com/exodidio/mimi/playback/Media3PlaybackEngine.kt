@@ -88,6 +88,18 @@ class Media3PlaybackEngine(
         player.play()
     }
 
+    override fun prepareQueue(tracks: List<Track>, startIndex: Int, startPositionMs: Long) {
+        val player = controller ?: return
+        if (tracks.isEmpty()) return
+
+        val items = tracks.map { it.toMediaItem() }
+        val index = startIndex.coerceIn(0, items.lastIndex)
+        // Same as playQueue, minus play(): preparing leaves the transport stopped but
+        // the item loaded and seeked, so play() later resumes from the right place.
+        player.setMediaItems(items, index, startPositionMs.coerceAtLeast(0L))
+        player.prepare()
+    }
+
     override fun togglePlayPause() {
         val player = controller ?: return
         if (player.isPlaying) {

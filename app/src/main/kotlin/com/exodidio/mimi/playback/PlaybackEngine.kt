@@ -46,6 +46,16 @@ interface PlaybackEngine {
     fun release()
 
     fun playQueue(tracks: List<Track>, startIndex: Int)
+
+    /**
+     * Loads a queue but leaves it paused, already sitting at [startPositionMs].
+     *
+     * Used to put the previous session back on screen at launch: the user should see
+     * what they were listening to and choose to hit play, not be blasted with audio
+     * the moment the app opens.
+     */
+    fun prepareQueue(tracks: List<Track>, startIndex: Int, startPositionMs: Long)
+
     fun togglePlayPause()
     fun next()
     fun previous()
