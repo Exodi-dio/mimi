@@ -1,0 +1,42 @@
+MIMI
+Copyright (C) 2026 Exodi-dio
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+MIMI is an independent project. It is not affiliated with, endorsed by, or
+sponsored by Apple Inc. "Apple Music" is a trademark of Apple Inc., referenced
+here only to describe design inspiration.
+
+--------------------------------------------------------------------------------
+Runtime dependencies
+--------------------------------------------------------------------------------
+
+androidx.media3 (ExoPlayer)      Apache-2.0
+Jetpack Compose / Material 3    Apache-2.0
+androidx.room                   Apache-2.0
+Kotlin / kotlinx.coroutines     Apache-2.0
+
+--------------------------------------------------------------------------------
+Design references
+--------------------------------------------------------------------------------
+
+MIMI's interface is designed from scratch. The following projects were studied
+as references for interaction and visual patterns and were built under
+GPL-3.0 or Apache-2.0:
+
+  kushagrasinghx/BitChord         GPL-3.0    Now Playing layout / motion
+  lladlam/MeloX-Android           GPL-3.0    Now Playing structure
+  cosmictaserdev-creator/Convx    GPL-3.0    Player morph / drag motion
+  misa198/Airmedy                 GPL-3.0    Design language
+  chrisbanes/haze                 Apache-2.0 Frosted glass
+  Kyant0/AndroidLiquidGlass       Apache-2.0 Glass controls
+
+No source files from the projects above are included in this repository at this
+time. They are credited as design references only.
