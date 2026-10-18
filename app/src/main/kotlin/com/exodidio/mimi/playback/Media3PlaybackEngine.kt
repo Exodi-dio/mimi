@@ -37,8 +37,18 @@ class Media3PlaybackEngine(
     private var controller: MediaController? = null
     private var ticker: Job? = null
 
+    /**
+     * The queue is read from the session one item at a time, and every read crosses a
+     * binder boundary. Doing that on the twice-a-second tick would be hundreds of calls
+     * a second for a list that only changes when the timeline does, so it is cached and
+     * rebuilt on the timeline-changed event instead.
+     */
+    private var queueDirty = true
+    private var cachedQueue: List<QueueItem> = emptyList()
+
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
+            if (events.contains(Player.EVENT_TIMELINE_CHANGED)) queueDirty = true
             publish(player)
         }
     }
@@ -64,6 +74,7 @@ class Media3PlaybackEngine(
 
         controller = connected
         connected.addListener(listener)
+        queueDirty = true
         publish(connected)
         startTicker()
     }
@@ -74,6 +85,8 @@ class Media3PlaybackEngine(
         controller?.removeListener(listener)
         controller?.release()
         controller = null
+        cachedQueue = emptyList()
+        queueDirty = true
         _state.value = PlaybackState()
     }
 
@@ -130,6 +143,39 @@ class Media3PlaybackEngine(
         controller?.repeatMode = mode.toPlayerRepeatMode()
     }
 
+    override fun playNext(track: Track) {
+        val player = controller ?: return
+        // Straight after whatever is playing, so it survives the current track ending
+        // rather than landing at the end of an album the user is not going to reach.
+        val at = (player.currentMediaItemIndex + 1).coerceIn(0, player.mediaItemCount)
+        player.addMediaItem(at, track.toMediaItem())
+    }
+
+    override fun addToQueue(track: Track) {
+        controller?.addMediaItem(track.toMediaItem())
+    }
+
+    override fun jumpToQueueItem(index: Int) {
+        val player = controller ?: return
+        if (index !in 0 until player.mediaItemCount) return
+        if (player.playbackState == Player.STATE_IDLE) player.prepare()
+        player.seekTo(index, 0L)
+        player.play()
+    }
+
+    override fun moveInQueue(fromIndex: Int, toIndex: Int) {
+        val player = controller ?: return
+        val last = player.mediaItemCount - 1
+        if (fromIndex !in 0..last || toIndex !in 0..last || fromIndex == toIndex) return
+        player.moveMediaItem(fromIndex, toIndex)
+    }
+
+    override fun removeFromQueue(index: Int) {
+        val player = controller ?: return
+        if (index !in 0 until player.mediaItemCount) return
+        player.removeMediaItem(index)
+    }
+
     /**
      * Media3 only reports position changes to listeners when something else happens,
      * so the progress bar needs its own heartbeat.
@@ -145,6 +191,11 @@ class Media3PlaybackEngine(
     }
 
     private fun publish(player: Player) {
+        if (queueDirty) {
+            cachedQueue = (0 until player.mediaItemCount).map { queueItemAt(player, it) }
+            queueDirty = false
+        }
+
         val item = player.currentMediaItem
         val metadata = item?.mediaMetadata
         val duration = player.duration
@@ -152,7 +203,7 @@ class Media3PlaybackEngine(
         _state.value = PlaybackState(
             connected = true,
             current = item?.let {
-                NowPlaying(
+                QueueItem(
                     mediaId = it.mediaId,
                     title = metadata?.title?.toString()?.takeIf(String::isNotBlank) ?: UNKNOWN_TITLE,
                     artist = metadata?.artist?.toString(),
@@ -164,6 +215,19 @@ class Media3PlaybackEngine(
             durationMs = if (duration > 0L) duration else 0L,
             shuffleEnabled = player.shuffleModeEnabled,
             repeatMode = player.repeatMode.toRepeatMode(),
+            queue = cachedQueue,
+            currentIndex = if (player.mediaItemCount == 0) -1 else player.currentMediaItemIndex,
+        )
+    }
+
+    private fun queueItemAt(player: Player, index: Int): QueueItem {
+        val item = player.getMediaItemAt(index)
+        val metadata = item.mediaMetadata
+        return QueueItem(
+            mediaId = item.mediaId,
+            title = metadata.title?.toString()?.takeIf(String::isNotBlank) ?: UNKNOWN_TITLE,
+            artist = metadata.artist?.toString(),
+            album = metadata.albumTitle?.toString(),
         )
     }
 

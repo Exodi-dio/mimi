@@ -49,6 +49,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun cycleRepeat() = engine.setRepeat(engine.state.value.repeatMode.next())
 
+    fun playNext(track: Track) = engine.playNext(track)
+
+    fun addToQueue(track: Track) = engine.addToQueue(track)
+
+    fun jumpToQueueItem(index: Int) = engine.jumpToQueueItem(index)
+
+    fun moveInQueue(fromIndex: Int, toIndex: Int) = engine.moveInQueue(fromIndex, toIndex)
+
+    fun removeFromQueue(index: Int) = engine.removeFromQueue(index)
+
     override fun onCleared() {
         engine.release()
     }
