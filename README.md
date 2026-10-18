@@ -5,28 +5,35 @@ ads, no network.
 
 ## Status
 
-**Pre-beta.** The foundations build is in place; the beta-1 feature surface
-(library scan, playback, queue, shuffle/repeat, background playback, plain Now
-Playing) is being built step by step.
+**Beta.** The engine works and the feature surface is filling in ahead of the
+visual pass, on purpose: every screen gets built and made to work while the app
+is still plain, so the skin later has something finished to redraw. Nothing here
+is styled yet and it is not meant to be.
 
-## Beta 1 scope
+## What works today
 
-| In | Out (for now) |
+| Working | Not yet |
 | --- | --- |
-| Device library scan + cached results | Theming / Apple Music visuals |
-| Play / pause / next / previous / seek | Lyrics |
-| Shuffle, repeat | Artists, albums, playlists |
-| Background playback + notification | Last.fm, EQ, crossfade |
-| Plain Now Playing screen | Branding / app icon |
-| Resume last track | |
+| Library scan, cached so it never rescans on open | Theming / Apple Music visuals |
+| Songs, albums, artists, playlists as library sections | Lyrics |
+| Playlists: make, rename, delete, add and remove songs | Last.fm, EQ, crossfade |
+| Loved songs | Branding / app icon |
+| Search across titles, artists and albums | |
+| Play / pause / next / previous / seek | |
+| Shuffle, repeat off/all/one | |
+| Background playback, notification, lock screen | |
+| Mini player and a plain Now Playing screen | |
+| Resume last track, position, shuffle and repeat | |
+| Cover art, read from the files themselves | |
 
 ## Stack
 
 - Kotlin, Jetpack Compose (Material 3)
 - **Media3 / ExoPlayer** for playback, behind a `PlaybackEngine` abstraction so
   an FFmpeg-backed engine can be added later without touching the app.
-- Room for the cached media library
-- AGP 9.3.1, Kotlin 2.4.10, Gradle 9.5.0, compileSdk 36, minSdk 31 (Android 12+)
+- Room for the cached media library, and for the two things a rescan must not
+  touch: loved songs and playlists.
+- AGP 9.3.1, Kotlin 2.4.10, Gradle 9.5.0, compileSdk 37.1, minSdk 31 (Android 12+)
 
 ## Building
 
