@@ -15,12 +15,14 @@ is styled yet and it is not meant to be.
 | Working | Not yet |
 | --- | --- |
 | Library scan, cached so it never rescans on open | Theming / Apple Music visuals |
-| Songs, albums, artists, playlists as library sections | Lyrics |
-| Playlists: make, rename, delete, add and remove songs | Last.fm, EQ, crossfade |
-| Loved songs | Branding / app icon |
+| Songs, albums, artists, playlists as library sections | Last.fm, EQ, crossfade |
+| Playlists: make, rename, delete, add and remove songs | Branding / app icon |
+| Loved songs | |
 | Search across titles, artists and albums | |
 | Play / pause / next / previous / seek | |
 | Shuffle, repeat off/all/one | |
+| Up next queue: reorder, jump, remove, play next, add to queue | |
+| Lyrics read out of the files themselves, timed or not | |
 | Background playback, notification, lock screen | |
 | Mini player and a plain Now Playing screen | |
 | Resume last track, position, shuffle and repeat | |

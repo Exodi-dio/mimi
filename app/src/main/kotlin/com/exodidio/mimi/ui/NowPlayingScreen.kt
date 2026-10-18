@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.MicVocal
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Pause
 import com.composables.icons.lucide.Play
@@ -60,8 +61,8 @@ fun NowPlayingScreen(
     onSeek: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
-    showQueue: Boolean,
-    onToggleQueue: () -> Unit,
+    face: PlayerFace,
+    onShowFace: (PlayerFace) -> Unit,
     onQueueItemClick: (Int) -> Unit,
     onQueueMoveUp: (Int) -> Unit,
     onQueueMoveDown: (Int) -> Unit,
@@ -69,6 +70,7 @@ fun NowPlayingScreen(
     modifier: Modifier = Modifier,
 ) {
     val current = state.current
+    val lyricsState = rememberLyrics(current?.mediaId)
 
     Column(
         modifier = modifier
@@ -89,11 +91,29 @@ fun NowPlayingScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = onToggleQueue) {
+            // The title sits a little left of centre because the right-hand side carries
+            // two buttons to the left's one. Worth nothing while this header is a stand-in:
+            // the skin replaces it with the artwork's own grabber.
+            IconButton(
+                onClick = {
+                    onShowFace(if (face == PlayerFace.LYRICS) PlayerFace.ARTWORK else PlayerFace.LYRICS)
+                },
+            ) {
+                Icon(
+                    imageVector = Lucide.MicVocal,
+                    contentDescription = if (face == PlayerFace.LYRICS) "Hide lyrics" else "Show lyrics",
+                    tint = accent(face == PlayerFace.LYRICS),
+                )
+            }
+            IconButton(
+                onClick = {
+                    onShowFace(if (face == PlayerFace.QUEUE) PlayerFace.ARTWORK else PlayerFace.QUEUE)
+                },
+            ) {
                 Icon(
                     imageVector = Lucide.ListMusic,
-                    contentDescription = if (showQueue) "Hide up next" else "Show up next",
-                    tint = accent(showQueue),
+                    contentDescription = if (face == PlayerFace.QUEUE) "Hide up next" else "Show up next",
+                    tint = accent(face == PlayerFace.QUEUE),
                 )
             }
         }
@@ -103,8 +123,8 @@ fun NowPlayingScreen(
                 .weight(1f)
                 .fillMaxWidth(),
         ) {
-            if (showQueue) {
-                QueuePanel(
+            when (face) {
+                PlayerFace.QUEUE -> QueuePanel(
                     queue = state.queue,
                     currentIndex = state.currentIndex,
                     shuffled = state.shuffleEnabled,
@@ -114,8 +134,20 @@ fun NowPlayingScreen(
                     onRemove = onQueueRemove,
                     modifier = Modifier.fillMaxSize(),
                 )
-            } else {
-                Column(
+
+                PlayerFace.LYRICS -> when (val lyrics = lyricsState) {
+                    is LyricsState.Found -> LyricsPanel(
+                        lyrics = lyrics.lyrics,
+                        positionMs = state.positionMs,
+                        onSeek = onSeek,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    LyricsState.Loading -> LyricsMessage("Looking for lyrics\u2026")
+                    LyricsState.None -> LyricsMessage("No lyrics in this file.")
+                }
+
+                PlayerFace.ARTWORK -> Column(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,

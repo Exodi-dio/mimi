@@ -55,9 +55,9 @@ fun MimiApp() {
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 
-    // Which face the player shows: the artwork, or what is coming up. The skin turns this
-    // into a swipe between pages, but it flips the same state either way.
-    var showQueue by rememberSaveable { mutableStateOf(false) }
+    // Which face the player shows: the artwork, the words, or what is coming up. The skin
+    // turns this into a swipe between pages, but it flips the same state either way.
+    var playerFace by rememberSaveable { mutableStateOf(PlayerFace.ARTWORK) }
 
     // Which song is waiting to be put in a playlist, if any.
     var addTarget by remember { mutableStateOf<Track?>(null) }
@@ -79,15 +79,15 @@ fun MimiApp() {
             if (showNowPlaying && hasTrack) {
                 NowPlayingScreen(
                     state = playback,
-                    onClose = { showNowPlaying = false; showQueue = false },
+                    onClose = { showNowPlaying = false; playerFace = PlayerFace.ARTWORK },
                     onPlayPause = playerViewModel::togglePlayPause,
                     onNext = playerViewModel::next,
                     onPrevious = playerViewModel::previous,
                     onSeek = playerViewModel::seekTo,
                     onToggleShuffle = playerViewModel::toggleShuffle,
                     onCycleRepeat = playerViewModel::cycleRepeat,
-                    showQueue = showQueue,
-                    onToggleQueue = { showQueue = !showQueue },
+                    face = playerFace,
+                    onShowFace = { playerFace = it },
                     onQueueItemClick = playerViewModel::jumpToQueueItem,
                     onQueueMoveUp = { index -> playerViewModel.moveInQueue(index, index - 1) },
                     onQueueMoveDown = { index -> playerViewModel.moveInQueue(index, index + 1) },
