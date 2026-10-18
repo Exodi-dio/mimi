@@ -238,6 +238,10 @@ interface MetaDao {
      */
     @Query("SELECT * FROM meta WHERE meta_key LIKE :prefix || '%'")
     fun observeWithPrefix(prefix: String): Flow<List<MetaEntry>>
+
+    /** The same rows, read once rather than watched. */
+    @Query("SELECT * FROM meta WHERE meta_key LIKE :prefix || '%'")
+    suspend fun getAllWithPrefix(prefix: String): List<MetaEntry>
 }
 
 /**

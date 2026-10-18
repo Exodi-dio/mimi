@@ -290,7 +290,11 @@ private fun Scrubber(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit)
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = formatDuration(value.toLong()),
+                text = if (LocalSettings.current.showRemainingTime) {
+                    "-" + formatDuration((max.toLong() - value.toLong()).coerceAtLeast(0L))
+                } else {
+                    formatDuration(value.toLong())
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

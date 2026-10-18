@@ -47,8 +47,15 @@ object MediaStoreScanner {
         MediaStore.MediaColumns.DISPLAY_NAME,
     )
 
+    /**
+     * Which rows count as music.
+     *
+     * The outside bounds come from the settings, so they are bound arguments rather than
+     * text pasted into the statement: the query keeps one shape and the provider can still
+     * prepare it.
+     */
     private const val selection =
-        "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.MediaColumns.DURATION} > 0"
+        "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.MediaColumns.DURATION} > ?"
 
     /**
      * A track as it comes off the cursor, before the side tables have had their say.
@@ -75,9 +82,10 @@ object MediaStoreScanner {
         val fileName: String?,
     )
 
-    suspend fun scan(context: Context): List<Track> = withContext(Dispatchers.IO) {
-        val rows = runCatching { queryRows(context, extendedProjection) }
-            .getOrElse { queryRows(context, baseProjection) }
+    suspend fun scan(context: Context, minDurationMs: Long = 0L): List<Track> =
+        withContext(Dispatchers.IO) {
+            val rows = runCatching { queryRows(context, extendedProjection, minDurationMs) }
+                .getOrElse { queryRows(context, baseProjection, minDurationMs) }
 
         if (rows.isEmpty()) return@withContext emptyList()
 
@@ -110,14 +118,18 @@ object MediaStoreScanner {
         }
     }
 
-    private fun queryRows(context: Context, projection: Array<String>): List<Row> {
+    private fun queryRows(
+        context: Context,
+        projection: Array<String>,
+        minDurationMs: Long,
+    ): List<Row> {
         val rows = ArrayList<Row>()
         context.contentResolver
             .query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
                 selection,
-                null,
+                arrayOf(minDurationMs.toString()),
                 "${MediaStore.MediaColumns.TITLE} COLLATE NOCASE ASC",
             )
             ?.use { cursor ->

@@ -1,6 +1,7 @@
 package com.exodidio.mimi.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +12,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,7 +28,9 @@ import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Settings
 import com.exodidio.mimi.library.PlaylistSummary
+import com.exodidio.mimi.library.ThemeMode
 import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.ui.theme.MimiTheme
 
 /**
  * The shell.
@@ -38,6 +42,27 @@ import com.exodidio.mimi.library.Track
  */
 @Composable
 fun MimiApp() {
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+
+    val dark = when (settings.themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
+    // The theme is one of the settings, so the app applies its own rather than taking the
+    // one the activity set. Everything inside reads the settings from here, which is also
+    // what keeps a display choice from being threaded through every screen that draws.
+    MimiTheme(darkTheme = dark) {
+        CompositionLocalProvider(LocalSettings provides settings) {
+            MimiAppContent()
+        }
+    }
+}
+
+@Composable
+private fun MimiAppContent() {
     val libraryViewModel: LibraryViewModel = viewModel()
     val playerViewModel: PlayerViewModel = viewModel()
     val navigator: NavigationViewModel = viewModel()
@@ -53,7 +78,7 @@ fun MimiApp() {
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
-    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+    val settings = LocalSettings.current
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 

@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.exodidio.mimi.MimiApplication
 import com.exodidio.mimi.library.AlbumSummary
 import com.exodidio.mimi.library.ArtistSummary
+import com.exodidio.mimi.library.LibraryChangeObserver
+import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.Track
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -136,9 +138,35 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val _scanning = MutableStateFlow(false)
     val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
 
+    private val settings = (application as MimiApplication).settings
+
+    /** Watches the media store, so music copied onto the phone turns up on its own. */
+    private val changeObserver = LibraryChangeObserver(application) { refresh(force = true) }
+
+    /** The shortest-song choice the current list was built with. */
+    private var scannedLength: MinSongLength? = null
+
     init {
-        // Warm start: refresh only if the cache has gone stale.
-        refresh(force = false)
+        // Scanning follows the settings rather than happening on a fixed schedule. The
+        // first reading is a warm start, which only scans if the cache has gone stale;
+        // after that, only a change to the shortest-song bound needs a rebuild, because
+        // that one changes which songs exist at all.
+        viewModelScope.launch {
+            settings.settings.collect { chosen ->
+                val previous = scannedLength
+                scannedLength = chosen.minSongLength
+                when {
+                    previous == null -> if (chosen.scanOnLaunch) refresh(force = false)
+                    previous != chosen.minSongLength -> refresh(force = true)
+                }
+                if (chosen.watchForChanges) changeObserver.start() else changeObserver.stop()
+            }
+        }
+    }
+
+    override fun onCleared() {
+        changeObserver.close()
+        super.onCleared()
     }
 
     fun refresh(force: Boolean = true) {

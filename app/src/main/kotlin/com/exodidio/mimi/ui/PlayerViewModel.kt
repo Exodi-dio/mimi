@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val library = (application as MimiApplication).library
+    private val store = (application as MimiApplication).settings
     private val engine: PlaybackEngine = Media3PlaybackEngine(application, viewModelScope)
 
     val state: StateFlow<PlaybackState> = engine.state
@@ -34,7 +35,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     init {
         viewModelScope.launch {
             runCatching { engine.connect() }
-            runCatching { restoreSession() }
+            // The session is still written down even when it is not restored, so turning
+            // this on later picks up from wherever the app was left.
+            val chosen = runCatching { store.settings.first() }.getOrNull()
+            if (chosen?.resumeSession != false) runCatching { restoreSession() }
         }
         persistSession()
         trackHistory()

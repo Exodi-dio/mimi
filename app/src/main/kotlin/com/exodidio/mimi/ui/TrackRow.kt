@@ -70,13 +70,15 @@ fun TrackRow(
                 .padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Artwork(
-                bitmap = rememberAlbumArt(track.contentUri, targetPx = 128, cacheKey = artKey),
-                modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(4.dp),
-                iconSize = 20.dp,
-            )
-            Spacer(modifier = Modifier.width(12.dp))
+            if (LocalSettings.current.showArtwork) {
+                Artwork(
+                    bitmap = rememberAlbumArt(track.contentUri, targetPx = 128, cacheKey = artKey),
+                    modifier = Modifier.size(44.dp),
+                    shape = RoundedCornerShape(4.dp),
+                    iconSize = 20.dp,
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = track.title,

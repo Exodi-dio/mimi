@@ -160,7 +160,8 @@ class LibraryRepository(
         val now = System.currentTimeMillis()
         if (!force && now - lastScanAt() < FRESHNESS_WINDOW_MS) return -1
 
-        val scanned = MediaStoreScanner.scan(context)
+        val chosen = Settings.from(metaDao.getAllWithPrefix(Settings.PREFIX))
+        val scanned = MediaStoreScanner.scan(context, chosen.minSongLength.millis)
         database.withTransaction {
             trackDao.deleteAll()
             trackDao.insertAll(scanned)
