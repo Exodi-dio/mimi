@@ -95,14 +95,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # apksigner lives in build-tools, which platform-tools does not provide.
+          apksigner_bin=$(ls -1 "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
+          if [ -z "$apksigner_bin" ]; then
+            yes | sdkmanager --install "build-tools;36.0.0" >/dev/null 2>&1 || true
+            apksigner_bin=$(ls -1 "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          fi
+          echo "using $apksigner_bin"
           expected=$(keytool -list -v -keystore tools/keystore/mimi-beta.keystore -storepass mimibeta \
-            | grep -m1 "SHA256:" | tr -d ' ' | cut -d: -f2-)
-          actual=$(apksigner verify --print-certs "$APK_PATH" | grep -m1 "SHA-256 digest" | awk '{print $NF}')
+            | grep -m1 "SHA256:" | sed 's/.*SHA256://' | tr -d ' \r')
+          actual=$("$apksigner_bin" verify --print-certs "$APK_PATH" | grep -m1 "SHA-256 digest" | awk '{print $NF}')
           echo "expected: $expected"
           echo "actual:   $actual"
-          # apksigner prints colon-separated uppercase hex
+          # normalise both to bare uppercase hex so formatting differences do not matter
           norm_expected=$(echo "$expected" | tr -d ':' | tr 'a-f' 'A-F')
           norm_actual=$(echo "$actual" | tr -d ':' | tr 'a-f' 'A-F')
+          if [ -z "$norm_expected" ] || [ -z "$norm_actual" ]; then
+            echo "Could not read one of the digests." >&2
+            exit 1
+          fi
           if [ "$norm_expected" != "$norm_actual" ]; then
             echo "APK is not signed with the committed beta key — updates would fail to install." >&2
             exit 1
