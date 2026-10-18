@@ -79,3 +79,16 @@ fun albumCountLabel(count: Int): String = if (count == 1) "1 album" else "$count
 
 /** "1 artist" / "N artists". */
 fun artistCountLabel(count: Int): String = if (count == 1) "1 artist" else "$count artists"
+
+/** "1 playlist" / "N playlists". */
+fun playlistCountLabel(count: Int): String = if (count == 1) "1 playlist" else "$count playlists"
+
+/** A heading between two blocks of a scrolling screen, such as Albums above Songs. */
+@Composable
+fun ListSectionTitle(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp),
+    )
+}

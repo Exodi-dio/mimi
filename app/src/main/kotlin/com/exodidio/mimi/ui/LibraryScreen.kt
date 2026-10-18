@@ -21,6 +21,9 @@ import com.exodidio.mimi.library.Track
 fun LibraryScreen(
     tracks: List<Track>,
     scanning: Boolean,
+    favoriteIds: Set<Long>,
+    onToggleLove: (Long) -> Unit,
+    onAddToPlaylist: (Track) -> Unit,
     onRefresh: () -> Unit,
     onTrackClick: (index: Int) -> Unit,
     playingMediaId: String? = null,
@@ -57,6 +60,9 @@ fun LibraryScreen(
                         track = track,
                         isPlaying = track.contentUri == playingMediaId,
                         onClick = { onTrackClick(index) },
+                        isLoved = track.id in favoriteIds,
+                        onToggleLove = { onToggleLove(track.id) },
+                        onAddToPlaylist = { onAddToPlaylist(track) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }

@@ -43,6 +43,9 @@ fun SearchScreen(
     onTrackClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
     playingMediaId: String? = null,
+    favoriteIds: Set<Long> = emptySet(),
+    onToggleLove: (Long) -> Unit = {},
+    onAddToPlaylist: (Track) -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(title = "Search")
@@ -79,6 +82,9 @@ fun SearchScreen(
                         track = track,
                         isPlaying = track.contentUri == playingMediaId,
                         onClick = { onTrackClick(index) },
+                        isLoved = track.id in favoriteIds,
+                        onToggleLove = { onToggleLove(track.id) },
+                        onAddToPlaylist = { onAddToPlaylist(track) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }

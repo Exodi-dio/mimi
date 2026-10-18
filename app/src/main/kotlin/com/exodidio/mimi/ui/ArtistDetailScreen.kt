@@ -34,6 +34,9 @@ fun ArtistDetailScreen(
     onPlay: (List<Track>, Int) -> Unit,
     modifier: Modifier = Modifier,
     playingMediaId: String? = null,
+    favoriteIds: Set<Long> = emptySet(),
+    onToggleLove: (Long) -> Unit = {},
+    onAddToPlaylist: (Track) -> Unit = {},
 ) {
     val tracks by remember(artist) { tracksForArtist(artist) }
         .collectAsStateWithLifecycle(initialValue = emptyList<Track>())
@@ -79,6 +82,9 @@ fun ArtistDetailScreen(
                     track = track,
                     isPlaying = track.contentUri == playingMediaId,
                     onClick = { onPlay(tracks, index) },
+                    isLoved = track.id in favoriteIds,
+                    onToggleLove = { onToggleLove(track.id) },
+                    onAddToPlaylist = { onAddToPlaylist(track) },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
