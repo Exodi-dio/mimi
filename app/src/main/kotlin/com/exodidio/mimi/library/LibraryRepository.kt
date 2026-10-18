@@ -38,6 +38,25 @@ class LibraryRepository(
     /** Titles, artists and albums containing [query]. Blank matches nothing, not everything. */
     fun search(query: String): Flow<List<Track>> = trackDao.search(query)
 
+    /** The newest arrivals, for a shelf rather than a screen of its own. */
+    fun recentlyAdded(limit: Int): Flow<List<Track>> = trackDao.observeRecentlyAdded(limit)
+
+    val genres: Flow<List<GenreSummary>> = trackDao.observeGenres()
+
+    val composers: Flow<List<ComposerSummary>> = trackDao.observeComposers()
+
+    val years: Flow<List<YearSummary>> = trackDao.observeYears()
+
+    val folders: Flow<List<FolderSummary>> = trackDao.observeFolders()
+
+    fun tracksInGenre(genre: String): Flow<List<Track>> = trackDao.observeGenreTracks(genre)
+
+    fun tracksByComposer(composer: String): Flow<List<Track>> = trackDao.observeComposerTracks(composer)
+
+    fun tracksInYear(year: Int): Flow<List<Track>> = trackDao.observeYearTracks(year)
+
+    fun tracksInFolder(folder: String): Flow<List<Track>> = trackDao.observeFolderTracks(folder)
+
     /** Ids of loved songs, for marking rows without loading the songs themselves. */
     val favoriteIds: Flow<List<Long>> = favoriteDao.observeIds()
 

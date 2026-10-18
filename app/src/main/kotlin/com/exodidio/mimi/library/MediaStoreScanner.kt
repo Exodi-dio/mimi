@@ -17,7 +17,8 @@ object MediaStoreScanner {
 
     private const val UNKNOWN = "<unknown>"
 
-    private val projection = arrayOf(
+    /** The columns that have been in MediaProvider since the beginning. */
+    private val baseProjection = arrayOf(
         MediaStore.MediaColumns._ID,
         MediaStore.MediaColumns.TITLE,
         MediaStore.Audio.Media.ARTIST,
@@ -30,16 +31,90 @@ object MediaStoreScanner {
         MediaStore.Audio.Media.TRACK,
     )
 
+    /**
+     * What the library would ideally know, on top of the essentials.
+     *
+     * A projection naming one column the provider does not have fails the *whole* query,
+     * not just that column, so these are asked for on top of [baseProjection] and the scan
+     * falls back rather than coming back empty. A device that says no simply gets a
+     * library without years and folders, which is worth having.
+     */
+    private val extendedProjection = baseProjection + arrayOf(
+        MediaStore.Audio.Media.COMPOSER,
+        MediaStore.Audio.Media.YEAR,
+        MediaStore.MediaColumns.DATE_ADDED,
+        MediaStore.MediaColumns.RELATIVE_PATH,
+        MediaStore.MediaColumns.DISPLAY_NAME,
+    )
+
     private const val selection =
         "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.MediaColumns.DURATION} > 0"
 
-    suspend fun scan(context: Context): List<Track> = withContext(Dispatchers.IO) {
-        val tracks = ArrayList<Track>()
-        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+    /**
+     * A track as it comes off the cursor, before the side tables have had their say.
+     *
+     * Kept separate from [Track] because album artists and genres are not columns of the
+     * audio table at all — they live in side tables that are read once per scan and then
+     * joined in memory, which is far cheaper than one query per song.
+     */
+    private data class Row(
+        val id: Long,
+        val title: String,
+        val artist: String?,
+        val album: String?,
+        val albumId: Long,
+        val durationMs: Long,
+        val dateModified: Long,
+        val sizeBytes: Long,
+        val mimeType: String?,
+        val trackNumber: Int,
+        val composer: String?,
+        val year: Int?,
+        val dateAdded: Long?,
+        val folder: String?,
+        val fileName: String?,
+    )
 
+    suspend fun scan(context: Context): List<Track> = withContext(Dispatchers.IO) {
+        val rows = runCatching { queryRows(context, extendedProjection) }
+            .getOrElse { queryRows(context, baseProjection) }
+
+        if (rows.isEmpty()) return@withContext emptyList()
+
+        val albumArtists = albumArtists(context)
+        val genres = genresByTrack(context)
+
+        rows.map { row ->
+            Track(
+                id = row.id,
+                title = row.title,
+                artist = row.artist,
+                albumArtist = albumArtists[row.albumId],
+                album = row.album,
+                albumId = row.albumId,
+                durationMs = row.durationMs,
+                contentUri = ContentUris
+                    .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, row.id)
+                    .toString(),
+                dateAdded = row.dateAdded,
+                dateModified = row.dateModified,
+                sizeBytes = row.sizeBytes,
+                mimeType = row.mimeType,
+                trackNumber = row.trackNumber,
+                year = row.year,
+                genre = genres[row.id],
+                composer = row.composer,
+                fileName = row.fileName,
+                folder = row.folder,
+            )
+        }
+    }
+
+    private fun queryRows(context: Context, projection: Array<String>): List<Row> {
+        val rows = ArrayList<Row>()
         context.contentResolver
             .query(
-                collection,
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
                 selection,
                 null,
@@ -56,27 +131,122 @@ object MediaStoreScanner {
                 val sizeColumn = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
                 val mimeColumn = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
                 val trackColumn = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK)
+                val composerColumn = cursor.getColumnIndex(MediaStore.Audio.Media.COMPOSER)
+                val yearColumn = cursor.getColumnIndex(MediaStore.Audio.Media.YEAR)
+                val addedColumn = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
+                val pathColumn = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+                val nameColumn = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
 
                 while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idColumn)
-                    tracks += Track(
-                        id = id,
+                    val year = if (yearColumn >= 0) cursor.getInt(yearColumn) else 0
+                    rows += Row(
+                        id = cursor.getLong(idColumn),
                         title = cursor.stringOrNull(titleColumn) ?: "Unknown title",
                         artist = cursor.stringOrNull(artistColumn),
                         album = cursor.stringOrNull(albumColumn),
                         albumId = if (albumIdColumn >= 0) cursor.getLong(albumIdColumn) else 0L,
                         durationMs = if (durationColumn >= 0) cursor.getLong(durationColumn) else 0L,
-                        contentUri = ContentUris.withAppendedId(collection, id).toString(),
                         dateModified = if (modifiedColumn >= 0) cursor.getLong(modifiedColumn) else 0L,
                         sizeBytes = if (sizeColumn >= 0) cursor.getLong(sizeColumn) else 0L,
                         mimeType = cursor.stringOrNull(mimeColumn),
                         trackNumber = if (trackColumn >= 0) cursor.getInt(trackColumn) else 0,
+                        composer = if (composerColumn >= 0) cursor.stringOrNull(composerColumn) else null,
+                        year = year.takeIf { it > 0 },
+                        dateAdded = if (addedColumn >= 0) cursor.getLong(addedColumn) else null,
+                        folder = if (pathColumn >= 0) {
+                            cursor.stringOrNull(pathColumn)?.trim('/')?.takeIf { it.isNotEmpty() }
+                        } else {
+                            null
+                        },
+                        fileName = if (nameColumn >= 0) cursor.stringOrNull(nameColumn) else null,
                     )
                 }
             }
-
-        tracks
+        return rows
     }
+
+    /**
+     * Album id to album artist, read from the albums table.
+     *
+     * The audio table only carries the track artist, which on a compilation is a different
+     * person on every row. The albums table is the one place that knows the record's own
+     * artist, so it is worth the second query.
+     */
+    private fun albumArtists(context: Context): Map<Long, String> = runCatching {
+        val artists = HashMap<Long, String>()
+        context.contentResolver
+            .query(
+                MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                arrayOf(MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ARTIST),
+                null,
+                null,
+                null,
+            )
+            ?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
+                val artistColumn = cursor.getColumnIndex(MediaStore.Audio.Albums.ARTIST)
+                while (cursor.moveToNext()) {
+                    val name = cursor.stringOrNull(artistColumn)
+                    if (name != null) artists[cursor.getLong(idColumn)] = name
+                }
+            }
+        artists
+    }.getOrDefault(emptyMap())
+
+    /**
+     * Track id to genre, from the genre side tables.
+     *
+     * MediaStore's own `genre` column on the audio table has been unreliable for years,
+     * so the genre tables are the source that actually has data. This is one query for the
+     * genre names and then one narrow query per genre — cheap next to the audio query
+     * itself, and only ever done during a scan.
+     *
+     * A song carrying several genres keeps the first one. Browsing by a joined-up string
+     * like "Rock, Pop" would invent a genre that matches nothing else in the library.
+     */
+    private fun genresByTrack(context: Context): Map<Long, String> = runCatching {
+        val genres = HashMap<Long, String>()
+        context.contentResolver
+            .query(
+                MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI,
+                arrayOf(MediaStore.Audio.Genres._ID, MediaStore.Audio.Genres.NAME),
+                null,
+                null,
+                null,
+            )
+            ?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Genres._ID)
+                val nameColumn = cursor.getColumnIndex(MediaStore.Audio.Genres.NAME)
+                while (cursor.moveToNext()) {
+                    val name = cursor.stringOrNull(nameColumn) ?: continue
+                    val genreId = cursor.getLong(idColumn)
+                    membersOfGenre(context, genreId).forEach { trackId ->
+                        if (trackId !in genres) genres[trackId] = name
+                    }
+                }
+            }
+        genres
+    }.getOrDefault(emptyMap())
+
+    private fun membersOfGenre(context: Context, genreId: Long): List<Long> = runCatching {
+        val ids = ArrayList<Long>()
+        context.contentResolver
+            .query(
+                MediaStore.Audio.Genres.Members.getContentUri(
+                    MediaStore.VOLUME_EXTERNAL,
+                    genreId,
+                ),
+                arrayOf(MediaStore.MediaColumns._ID),
+                null,
+                null,
+                null,
+            )
+            ?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                while (cursor.moveToNext()) ids += cursor.getLong(idColumn)
+            }
+        ids
+    }.getOrDefault(emptyList())
 
     private fun android.database.Cursor.stringOrNull(index: Int): String? {
         if (index < 0) return null

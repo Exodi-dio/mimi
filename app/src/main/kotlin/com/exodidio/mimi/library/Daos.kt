@@ -37,7 +37,7 @@ interface TrackDao {
         """
         SELECT album_id AS album_id,
                album AS album,
-               MIN(artist) AS artist,
+               MIN(COALESCE(album_artist, artist)) AS artist,
                COUNT(*) AS track_count,
                MIN(content_uri) AS artwork_uri
         FROM tracks
@@ -113,6 +113,108 @@ interface TrackDao {
         """
     )
     fun search(query: String): Flow<List<Track>>
+
+    /** The newest arrivals, which is what a "recently added" shelf wants. */
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE date_added IS NOT NULL
+        ORDER BY date_added DESC, title COLLATE NOCASE ASC
+        LIMIT :limit
+        """
+    )
+    fun observeRecentlyAdded(limit: Int): Flow<List<Track>>
+
+    @Query(
+        """
+        SELECT genre AS genre,
+               COUNT(*) AS track_count,
+               MIN(content_uri) AS artwork_uri
+        FROM tracks
+        WHERE genre IS NOT NULL AND TRIM(genre) != ''
+        GROUP BY genre
+        ORDER BY genre COLLATE NOCASE ASC
+        """
+    )
+    fun observeGenres(): Flow<List<GenreSummary>>
+
+    @Query(
+        """
+        SELECT composer AS composer,
+               COUNT(*) AS track_count,
+               MIN(content_uri) AS artwork_uri
+        FROM tracks
+        WHERE composer IS NOT NULL AND TRIM(composer) != ''
+        GROUP BY composer
+        ORDER BY composer COLLATE NOCASE ASC
+        """
+    )
+    fun observeComposers(): Flow<List<ComposerSummary>>
+
+    /** Newest year first: someone browsing by year is almost always looking backwards. */
+    @Query(
+        """
+        SELECT year AS year,
+               COUNT(*) AS track_count,
+               MIN(content_uri) AS artwork_uri
+        FROM tracks
+        WHERE year IS NOT NULL
+        GROUP BY year
+        ORDER BY year DESC
+        """
+    )
+    fun observeYears(): Flow<List<YearSummary>>
+
+    @Query(
+        """
+        SELECT folder AS folder,
+               COUNT(*) AS track_count,
+               MIN(content_uri) AS artwork_uri
+        FROM tracks
+        WHERE folder IS NOT NULL AND TRIM(folder) != ''
+        GROUP BY folder
+        ORDER BY folder COLLATE NOCASE ASC
+        """
+    )
+    fun observeFolders(): Flow<List<FolderSummary>>
+
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE genre = :genre
+        ORDER BY artist COLLATE NOCASE ASC, album COLLATE NOCASE ASC,
+                 track_number ASC, title COLLATE NOCASE ASC
+        """
+    )
+    fun observeGenreTracks(genre: String): Flow<List<Track>>
+
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE composer = :composer
+        ORDER BY album COLLATE NOCASE ASC, track_number ASC, title COLLATE NOCASE ASC
+        """
+    )
+    fun observeComposerTracks(composer: String): Flow<List<Track>>
+
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE year = :year
+        ORDER BY album COLLATE NOCASE ASC, track_number ASC, title COLLATE NOCASE ASC
+        """
+    )
+    fun observeYearTracks(year: Int): Flow<List<Track>>
+
+    /** File name order, which is how a folder on disk actually reads. */
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE folder = :folder
+        ORDER BY file_name COLLATE NOCASE ASC, title COLLATE NOCASE ASC
+        """
+    )
+    fun observeFolderTracks(folder: String): Flow<List<Track>>
 }
 
 @Dao
