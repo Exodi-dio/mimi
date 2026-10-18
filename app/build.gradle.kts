@@ -15,6 +15,7 @@ kotlin {
 android {
     namespace = "com.exodidio.mimi"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
+    compileSdkMinor = libs.versions.android.compileSdkMinor.get().toInt()
 
     defaultConfig {
         applicationId = "com.exodidio.mimi"
