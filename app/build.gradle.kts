@@ -56,6 +56,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodelCompose)
 
     implementation(libs.compose.material3)
+    implementation(libs.compose.lucideIcons)
     debugImplementation(libs.compose.uiTooling)
     debugImplementation(libs.compose.uiToolingPreview)
 

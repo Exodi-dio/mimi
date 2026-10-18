@@ -26,6 +26,7 @@ fun LibraryScreen(
     scanning: Boolean,
     onRefresh: () -> Unit,
     onTrackClick: (index: Int) -> Unit,
+    playingMediaId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -64,7 +65,11 @@ fun LibraryScreen(
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
-                    TrackRow(track = track, onClick = { onTrackClick(index) })
+                    TrackRow(
+                        track = track,
+                        isPlaying = track.contentUri == playingMediaId,
+                        onClick = { onTrackClick(index) },
+                    )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
@@ -80,7 +85,7 @@ private fun statusLine(count: Int, scanning: Boolean): String = when {
 }
 
 @Composable
-private fun TrackRow(track: Track, onClick: () -> Unit) {
+private fun TrackRow(track: Track, isPlaying: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -92,6 +97,11 @@ private fun TrackRow(track: Track, onClick: () -> Unit) {
             Text(
                 text = track.title,
                 style = MaterialTheme.typography.bodyLarge,
+                color = if (isPlaying) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
