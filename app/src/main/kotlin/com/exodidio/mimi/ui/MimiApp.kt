@@ -37,10 +37,11 @@ import com.exodidio.mimi.ui.theme.MimiTheme
 /**
  * The shell.
  *
- * Four tabs, because four is what fits: the library, the songs that were loved, search
- * and settings. How the library is sliced — songs, albums, artists, playlists — is a
- * section switcher inside it rather than more tabs, so tabs stay about going somewhere
- * and the switcher stays about looking at the same collection differently.
+ * Five tabs, which is what fits: home, the library, the songs that were loved, search and
+ * settings. How the library is sliced — songs, albums, artists, playlists, genres,
+ * composers, years, folders — is a section switcher inside it rather than more tabs, so
+ * tabs stay about going somewhere and the switcher stays about looking at the same
+ * collection differently.
  */
 @Composable
 fun MimiApp() {
@@ -83,6 +84,7 @@ private fun MimiAppContent() {
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
+    val sleepRemaining by playerViewModel.sleepRemaining.collectAsStateWithLifecycle()
     val settings = LocalSettings.current
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
@@ -101,6 +103,20 @@ private fun MimiAppContent() {
     val screen = navigator.current
     val playingMediaId = playback.current?.mediaId
 
+    /**
+     * Leaves the player and lands on a screen inside the library.
+     *
+     * Asking about the song that is playing is a question about the library, so it is
+     * answered there rather than in a place of its own.
+     */
+    fun closePlayerTo(destination: Screen, section: LibrarySection) {
+        showNowPlaying = false
+        playerFace = PlayerFace.ARTWORK
+        navigator.selectTab(Screen.Library)
+        navigator.selectSection(section)
+        navigator.push(destination)
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         AudioPermissionGate {
             // The player is an overlay, so it takes over the back gesture before the
@@ -116,6 +132,7 @@ private fun MimiAppContent() {
                     onNext = playerViewModel::next,
                     onPrevious = playerViewModel::previous,
                     onSeek = playerViewModel::seekTo,
+                    onSeekBy = playerViewModel::seekBy,
                     onToggleShuffle = playerViewModel::toggleShuffle,
                     onCycleRepeat = playerViewModel::cycleRepeat,
                     face = playerFace,
@@ -124,6 +141,24 @@ private fun MimiAppContent() {
                     onQueueMoveUp = { index -> playerViewModel.moveInQueue(index, index - 1) },
                     onQueueMoveDown = { index -> playerViewModel.moveInQueue(index, index + 1) },
                     onQueueRemove = playerViewModel::removeFromQueue,
+                    sleepRemaining = sleepRemaining,
+                    onStartSleepTimer = playerViewModel::startSleepTimer,
+                    onCancelSleepTimer = playerViewModel::cancelSleepTimer,
+                    onSetSpeed = playerViewModel::setSpeed,
+                    // Found by id at the moment it is asked for rather than tracked
+                    // alongside the player, which reports a new position twice a second.
+                    onGoToAlbum = {
+                        val track = tracks.firstOrNull { it.contentUri == playback.current?.mediaId }
+                        track?.let {
+                            closePlayerTo(Screen.AlbumDetail(it.albumId), LibrarySection.ALBUMS)
+                        }
+                    },
+                    onGoToArtist = {
+                        val artist = tracks
+                            .firstOrNull { it.contentUri == playback.current?.mediaId }
+                            ?.artist
+                        artist?.let { closePlayerTo(Screen.ArtistDetail(it), LibrarySection.ARTISTS) }
+                    },
                 )
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {

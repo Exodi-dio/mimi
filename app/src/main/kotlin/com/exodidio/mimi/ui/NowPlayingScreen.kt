@@ -14,12 +14,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +36,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.Disc3
+import com.composables.icons.lucide.Ellipsis
+import com.composables.icons.lucide.Gauge
 import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MicVocal
@@ -44,12 +50,17 @@ import com.composables.icons.lucide.Repeat1
 import com.composables.icons.lucide.Shuffle
 import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
+import com.composables.icons.lucide.Timer
 import com.exodidio.mimi.playback.PlaybackState
 import com.exodidio.mimi.playback.RepeatMode
+import kotlin.math.abs
 
 /**
- * Deliberately plain for beta 1: artwork, title, artist, scrubber and transport.
+ * Deliberately plain: artwork, title, artist, scrubber and transport.
  * The Apple Music inspired silhouette replaces this once playback is trusted.
+ *
+ * The header carries only a way out and a menu; the two faces the listener flips between
+ * sit with the transport, where a thumb already is.
  */
 @Composable
 fun NowPlayingScreen(
@@ -59,6 +70,7 @@ fun NowPlayingScreen(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onSeek: (Long) -> Unit,
+    onSeekBy: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     face: PlayerFace,
@@ -67,10 +79,19 @@ fun NowPlayingScreen(
     onQueueMoveUp: (Int) -> Unit,
     onQueueMoveDown: (Int) -> Unit,
     onQueueRemove: (Int) -> Unit,
+    sleepRemaining: Long?,
+    onStartSleepTimer: (Long) -> Unit,
+    onCancelSleepTimer: () -> Unit,
+    onSetSpeed: (Float) -> Unit,
+    onGoToAlbum: () -> Unit,
+    onGoToArtist: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val current = state.current
     val lyricsState = rememberLyrics(current?.mediaId)
+
+    var menuOpen by remember { mutableStateOf(false) }
+    var dialog by remember { mutableStateOf<PlayerDialog?>(null) }
 
     Column(
         modifier = modifier
@@ -91,30 +112,48 @@ fun NowPlayingScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
             )
-            // The title sits a little left of centre because the right-hand side carries
-            // two buttons to the left's one. Worth nothing while this header is a stand-in:
-            // the skin replaces it with the artwork's own grabber.
-            IconButton(
-                onClick = {
-                    onShowFace(if (face == PlayerFace.LYRICS) PlayerFace.ARTWORK else PlayerFace.LYRICS)
-                },
-            ) {
-                Icon(
-                    imageVector = Lucide.MicVocal,
-                    contentDescription = if (face == PlayerFace.LYRICS) "Hide lyrics" else "Show lyrics",
-                    tint = accent(face == PlayerFace.LYRICS),
-                )
-            }
-            IconButton(
-                onClick = {
-                    onShowFace(if (face == PlayerFace.QUEUE) PlayerFace.ARTWORK else PlayerFace.QUEUE)
-                },
-            ) {
-                Icon(
-                    imageVector = Lucide.ListMusic,
-                    contentDescription = if (face == PlayerFace.QUEUE) "Hide up next" else "Show up next",
-                    tint = accent(face == PlayerFace.QUEUE),
-                )
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Lucide.Ellipsis, contentDescription = "More options")
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(sleepLabel(sleepRemaining)) },
+                        leadingIcon = { Icon(Lucide.Timer, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            dialog = PlayerDialog.SLEEP
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Playback speed") },
+                        leadingIcon = { Icon(Lucide.Gauge, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            dialog = PlayerDialog.SPEED
+                        },
+                    )
+                    if (!current?.album.isNullOrBlank()) {
+                        DropdownMenuItem(
+                            text = { Text("Go to album") },
+                            leadingIcon = { Icon(Lucide.Disc3, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onGoToAlbum()
+                            },
+                        )
+                    }
+                    if (!current?.artist.isNullOrBlank()) {
+                        DropdownMenuItem(
+                            text = { Text("Go to artist") },
+                            leadingIcon = { Icon(Lucide.MicVocal, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onGoToArtist()
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -221,8 +260,109 @@ fun NowPlayingScreen(
                 )
             }
         }
+
+        // The words and the queue were header icons; they belong within thumb reach of the
+        // transport, and the pair of step buttons fills the space either side of them.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            TextButton(onClick = { onSeekBy(-STEP_MS) }) {
+                Text("\u221210s")
+            }
+            IconButton(
+                onClick = {
+                    onShowFace(if (face == PlayerFace.LYRICS) PlayerFace.ARTWORK else PlayerFace.LYRICS)
+                },
+            ) {
+                Icon(
+                    imageVector = Lucide.MicVocal,
+                    contentDescription = if (face == PlayerFace.LYRICS) "Hide lyrics" else "Show lyrics",
+                    tint = accent(face == PlayerFace.LYRICS),
+                )
+            }
+            IconButton(
+                onClick = {
+                    onShowFace(if (face == PlayerFace.QUEUE) PlayerFace.ARTWORK else PlayerFace.QUEUE)
+                },
+            ) {
+                Icon(
+                    imageVector = Lucide.ListMusic,
+                    contentDescription = if (face == PlayerFace.QUEUE) "Hide up next" else "Show up next",
+                    tint = accent(face == PlayerFace.QUEUE),
+                )
+            }
+            TextButton(onClick = { onSeekBy(STEP_MS) }) {
+                Text("+10s")
+            }
+        }
+    }
+
+    when (dialog) {
+        PlayerDialog.SLEEP -> ChoiceDialog(
+            title = "Sleep timer",
+            options = SleepChoices.map { it.second },
+            selectedIndex = if (sleepRemaining == null) {
+                SleepChoices.indexOfFirst { it.first == 0L }
+            } else {
+                -1
+            },
+            onPick = { index ->
+                dialog = null
+                val duration = SleepChoices.getOrNull(index)?.first ?: 0L
+                if (duration <= 0L) onCancelSleepTimer() else onStartSleepTimer(duration)
+            },
+            onDismiss = { dialog = null },
+        )
+
+        PlayerDialog.SPEED -> ChoiceDialog(
+            title = "Playback speed",
+            options = SpeedChoices.map { it.second },
+            selectedIndex = SpeedChoices.indexOfFirst { abs(it.first - state.speed) < 0.01f },
+            onPick = { index ->
+                dialog = null
+                SpeedChoices.getOrNull(index)?.let { onSetSpeed(it.first) }
+            },
+            onDismiss = { dialog = null },
+        )
+
+        null -> Unit
     }
 }
+
+/** Which sheet is open over the player, if any. */
+private enum class PlayerDialog { SLEEP, SPEED }
+
+/** How far the step buttons move, in milliseconds. */
+private const val STEP_MS = 10_000L
+
+/** Every length the sleep timer offers, paired with its label. Zero means off. */
+private val SleepChoices = listOf(
+    0L to "Off",
+    5 * 60_000L to "5 minutes",
+    10 * 60_000L to "10 minutes",
+    15 * 60_000L to "15 minutes",
+    30 * 60_000L to "30 minutes",
+    45 * 60_000L to "45 minutes",
+    60 * 60_000L to "1 hour",
+)
+
+/** The rates worth offering: half speed to well past double. */
+private val SpeedChoices = listOf(
+    0.5f to "0.5\u00d7",
+    0.75f to "0.75\u00d7",
+    1f to "1\u00d7",
+    1.25f to "1.25\u00d7",
+    1.5f to "1.5\u00d7",
+    2f to "2\u00d7",
+    2.5f to "2.5\u00d7",
+    3f to "3\u00d7",
+)
+
+/** Names the timer, and says how long is left when it is running. */
+private fun sleepLabel(remaining: Long?): String =
+    if (remaining == null) "Sleep timer" else "Sleep timer \u00b7 " + formatDuration(remaining)
 
 @Composable
 private fun accent(active: Boolean) = if (active) {
