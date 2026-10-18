@@ -3,6 +3,7 @@ package com.exodidio.mimi
 import android.app.Application
 import com.exodidio.mimi.library.LibraryRepository
 import com.exodidio.mimi.library.MimiDatabase
+import com.exodidio.mimi.library.SettingsStore
 import com.exodidio.mimi.lyrics.LyricsLoader
 
 class MimiApplication : Application() {
@@ -10,6 +11,8 @@ class MimiApplication : Application() {
     val database: MimiDatabase by lazy { MimiDatabase.get(this) }
 
     val library: LibraryRepository by lazy { LibraryRepository(this, database) }
+
+    val settings: SettingsStore by lazy { SettingsStore(database.metaDao()) }
 
     /**
      * Shared so its cache outlives any one screen: the words for a song are read once

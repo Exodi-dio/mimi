@@ -225,6 +225,19 @@ interface MetaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(entry: MetaEntry)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putAll(entries: List<MetaEntry>)
+
+    /**
+     * Every row whose key starts with [prefix].
+     *
+     * Settings share this table with the playback session, so they are read back by their
+     * own prefix rather than by reading the table whole: the session is rewritten every few
+     * seconds, and a settings flow that re-emitted with it would restart the player.
+     */
+    @Query("SELECT * FROM meta WHERE meta_key LIKE :prefix || '%'")
+    fun observeWithPrefix(prefix: String): Flow<List<MetaEntry>>
 }
 
 /**
