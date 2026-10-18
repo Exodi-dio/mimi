@@ -14,12 +14,14 @@ import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.Track
 import com.exodidio.mimi.library.YearSummary
+import com.exodidio.mimi.library.comparator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -30,10 +32,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val library = (application as MimiApplication).library
 
+    private val settings = (application as MimiApplication).settings
+
     /**
      * Comes straight from the Room cache, so the list paints instantly on launch.
+     *
+     * The chosen order is applied here rather than in the query. The cache reads back one
+     * way, and sorting it again is a pass over a list already in memory, where asking the
+     * database for each order would mean a different statement per choice.
      */
-    val tracks: StateFlow<List<Track>> = library.tracks.stateIn(
+    val tracks: StateFlow<List<Track>> = combine(library.tracks, settings.settings) { all, chosen ->
+        all.sortedWith(chosen.songSort.comparator(chosen.sortDescending))
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
@@ -195,8 +205,6 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _scanning = MutableStateFlow(false)
     val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
-
-    private val settings = (application as MimiApplication).settings
 
     /** Watches the media store, so music copied onto the phone turns up on its own. */
     private val changeObserver = LibraryChangeObserver(application) { refresh(force = true) }

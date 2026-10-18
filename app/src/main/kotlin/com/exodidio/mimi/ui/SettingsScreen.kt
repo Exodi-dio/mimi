@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.Settings
+import com.exodidio.mimi.library.SongSort
 import com.exodidio.mimi.library.ThemeMode
 
 /** The pages of the settings screen. */
@@ -30,7 +31,7 @@ private enum class SettingsTab(val label: String) {
 }
 
 /** Which question, if any, is currently open in a dialog. */
-private enum class SettingsChoice { MIN_LENGTH, THEME }
+private enum class SettingsChoice { MIN_LENGTH, THEME, SONG_SORT }
 
 /**
  * Settings, split into pages.
@@ -79,6 +80,7 @@ fun SettingsScreen(
                     scanning = scanning,
                     onRescan = onRescan,
                     onChooseLength = { openChoice = SettingsChoice.MIN_LENGTH },
+                    onChooseSort = { openChoice = SettingsChoice.SONG_SORT },
                 )
 
                 SettingsTab.PLAYBACK -> PlaybackPage(settings = settings, onChange = onChange)
@@ -118,6 +120,17 @@ fun SettingsScreen(
             onDismiss = { openChoice = null },
         )
 
+        SettingsChoice.SONG_SORT -> ChoiceDialog(
+            title = "Sort songs by",
+            options = SongSort.entries.map { it.label },
+            selectedIndex = settings.songSort.ordinal,
+            onPick = { index ->
+                onChange { it.copy(songSort = SongSort.entries[index]) }
+                openChoice = null
+            },
+            onDismiss = { openChoice = null },
+        )
+
         null -> Unit
     }
 }
@@ -130,6 +143,7 @@ private fun LibraryPage(
     scanning: Boolean,
     onRescan: () -> Unit,
     onChooseLength: () -> Unit,
+    onChooseSort: () -> Unit,
 ) {
     SettingsSectionHeading("Finding music")
     SettingsToggleRow(
@@ -169,6 +183,24 @@ private fun LibraryPage(
         onClick = onRescan,
     )
     SettingsInfoRow(title = "Played from", value = "This device")
+
+    HorizontalDivider(
+        modifier = Modifier.padding(top = 12.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+    SettingsSectionHeading("Order")
+    SettingsChoiceRow(
+        title = "Sort songs by",
+        subtitle = "Orders the songs list. Every other list keeps its own order.",
+        value = settings.songSort.label,
+        onClick = onChooseSort,
+    )
+    SettingsToggleRow(
+        title = "Sort descending",
+        subtitle = "Newest first, longest first, Z to A.",
+        checked = settings.sortDescending,
+        onCheckedChange = { value -> onChange { it.copy(sortDescending = value) } },
+    )
 }
 
 @Composable

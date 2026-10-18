@@ -28,6 +28,22 @@ enum class MinSongLength(val label: String, val millis: Long) {
 }
 
 /**
+ * How the songs list is ordered.
+ *
+ * The library always reads back in one fixed order and is sorted after the fact, so
+ * changing this costs one pass over a list already in memory rather than a different
+ * query — and it keeps one place responsible for what "sorted" means.
+ */
+enum class SongSort(val label: String) {
+    TITLE("Title"),
+    ARTIST("Artist"),
+    ALBUM("Album"),
+    YEAR("Year"),
+    DATE_ADDED("Recently added"),
+    DURATION("Duration"),
+}
+
+/**
  * Everything the listener has chosen.
  *
  * Every field has a default that matches how the app behaved before there was a screen to
@@ -50,6 +66,10 @@ data class Settings(
     /** Draw the cover art beside each song in a list. */
     val showArtwork: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** The field the songs list is ordered by. */
+    val songSort: SongSort = SongSort.TITLE,
+    /** Whether that order runs backwards, which is "newest first" for dates. */
+    val sortDescending: Boolean = false,
 ) {
     companion object {
         /**
@@ -68,6 +88,8 @@ data class Settings(
         private const val SHOW_REMAINING_TIME = "setting.show_remaining_time"
         private const val SHOW_ARTWORK = "setting.show_artwork"
         private const val THEME_MODE = "setting.theme_mode"
+        private const val SONG_SORT = "setting.song_sort"
+        private const val SORT_DESCENDING = "setting.sort_descending"
 
         /**
          * Reads a set of stored rows into settings.
@@ -93,6 +115,10 @@ data class Settings(
                 themeMode = stored[THEME_MODE]
                     ?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
                     ?: defaults.themeMode,
+                songSort = stored[SONG_SORT]
+                    ?.let { name -> SongSort.entries.firstOrNull { it.name == name } }
+                    ?: defaults.songSort,
+                sortDescending = stored.boolean(SORT_DESCENDING, defaults.sortDescending),
             )
         }
 
@@ -107,6 +133,8 @@ data class Settings(
             MetaEntry(SHOW_REMAINING_TIME, if (settings.showRemainingTime) "1" else "0"),
             MetaEntry(SHOW_ARTWORK, if (settings.showArtwork) "1" else "0"),
             MetaEntry(THEME_MODE, settings.themeMode.name),
+            MetaEntry(SONG_SORT, settings.songSort.name),
+            MetaEntry(SORT_DESCENDING, if (settings.sortDescending) "1" else "0"),
         )
 
         private fun Map<String, String>.boolean(key: String, default: Boolean): Boolean =
