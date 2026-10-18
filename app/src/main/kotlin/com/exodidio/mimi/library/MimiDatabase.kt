@@ -8,8 +8,15 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Track::class, MetaEntry::class, Favorite::class, Playlist::class, PlaylistEntry::class],
-    version = 3,
+    entities = [
+        Track::class,
+        MetaEntry::class,
+        Favorite::class,
+        Playlist::class,
+        PlaylistEntry::class,
+        PlayStat::class,
+    ],
+    version = 4,
     exportSchema = false,
 )
 abstract class MimiDatabase : RoomDatabase() {
@@ -21,6 +28,8 @@ abstract class MimiDatabase : RoomDatabase() {
     abstract fun favoriteDao(): FavoriteDao
 
     abstract fun playlistDao(): PlaylistDao
+
+    abstract fun playStatDao(): PlayStatDao
 
     companion object {
         private const val NAME = "mimi.db"
@@ -98,6 +107,31 @@ abstract class MimiDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 -> v4 adds listening history: how often each song was played, how often it was
+         * skipped, and when it was last heard.
+         *
+         * Additive and empty to begin with, so nothing existing has to be carried over.
+         * The columns carry no defaults here because nothing is non-null-and-defaulted:
+         * counters start at zero because the row is only ever inserted with zeros written
+         * by the entity, never by the table.
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `play_stats` (
+                        `track_id` INTEGER NOT NULL,
+                        `play_count` INTEGER NOT NULL,
+                        `skip_count` INTEGER NOT NULL,
+                        `last_played_at` INTEGER,
+                        PRIMARY KEY(`track_id`)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         @Volatile
         private var instance: MimiDatabase? = null
 
@@ -105,7 +139,7 @@ abstract class MimiDatabase : RoomDatabase() {
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, MimiDatabase::class.java, NAME)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     // Everything the app cannot rebuild lives in these tables, so the
                     // upgrade itself must not be the thing that loses it. The fallback is
                     // only there so a phone that somehow cannot walk the migration opens a

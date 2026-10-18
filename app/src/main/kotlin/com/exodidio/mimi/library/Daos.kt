@@ -312,3 +312,67 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_entries WHERE playlist_id = :playlistId AND track_id = :trackId")
     suspend fun removeEntry(playlistId: Long, trackId: Long)
 }
+
+/**
+ * How the listener has listened.
+ *
+ * Every read joins against `tracks`, so a song that has gone from the device takes its
+ * history out of these lists on its own rather than leaving a row that cannot be opened.
+ */
+@Dao
+interface PlayStatDao {
+
+    @Query(
+        """
+        SELECT track_id AS track_id,
+               play_count AS play_count,
+               skip_count AS skip_count,
+               last_played_at AS last_played_at
+        FROM play_stats
+        """
+    )
+    fun observeAll(): Flow<List<PlayStat>>
+
+    @Query(
+        """
+        SELECT tracks.* FROM tracks
+        INNER JOIN play_stats ON play_stats.track_id = tracks.id
+        WHERE play_stats.last_played_at IS NOT NULL
+        ORDER BY play_stats.last_played_at DESC
+        LIMIT :limit
+        """
+    )
+    fun observeRecentlyPlayed(limit: Int): Flow<List<Track>>
+
+    /** Only songs that were actually heard, most heard first. */
+    @Query(
+        """
+        SELECT tracks.* FROM tracks
+        INNER JOIN play_stats ON play_stats.track_id = tracks.id
+        WHERE play_stats.play_count > 0
+        ORDER BY play_stats.play_count DESC, tracks.title COLLATE NOCASE ASC
+        LIMIT :limit
+        """
+    )
+    fun observeMostPlayed(limit: Int): Flow<List<Track>>
+
+    /** Ignored when a row is already there, so history is only ever added to. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIfAbsent(stat: PlayStat)
+
+    @Query(
+        """
+        UPDATE play_stats
+        SET play_count = play_count + 1, last_played_at = :at
+        WHERE track_id = :trackId
+        """
+    )
+    suspend fun recordPlay(trackId: Long, at: Long)
+
+    @Query("UPDATE play_stats SET skip_count = skip_count + 1 WHERE track_id = :trackId")
+    suspend fun recordSkip(trackId: Long)
+
+    /** History for files that are no longer on the device. */
+    @Query("DELETE FROM play_stats WHERE track_id NOT IN (SELECT id FROM tracks)")
+    suspend fun prune()
+}

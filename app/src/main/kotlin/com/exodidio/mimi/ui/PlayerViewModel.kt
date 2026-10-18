@@ -1,6 +1,7 @@
 package com.exodidio.mimi.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.exodidio.mimi.MimiApplication
@@ -26,12 +27,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lastSavedMediaId: String? = null
     private var lastSavedBucket: Long = -1L
 
+    /** The song listening history is currently being kept for, and whether it counts yet. */
+    private var trackedMediaId: String? = null
+    private var heard = false
+
     init {
         viewModelScope.launch {
             runCatching { engine.connect() }
             runCatching { restoreSession() }
         }
         persistSession()
+        trackHistory()
     }
 
     /** Play the whole list from [index], so next/previous walk the row the user tapped. */
@@ -112,7 +118,72 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * Keeps the listening history.
+     *
+     * A song counts as heard once it has run past [PLAY_THRESHOLD_MS] — or half its length,
+     * if it is shorter than that. Reaching that point is the difference between playing a
+     * song and passing over it, and it needs nothing from the UI to detect.
+     *
+     * Skips fall out of the same rule for free: the threshold is never more than half a
+     * song, so a song that reaches its own end has always been heard. Any song that is
+     * replaced while still unheard was therefore not finished — it was moved on from, by
+     * the next button or by the listener picking something else.
+     */
+    private fun trackHistory() {
+        viewModelScope.launch {
+            engine.state.collect { snapshot ->
+                val current = snapshot.current
+                if (current == null) {
+                    trackedMediaId = null
+                    heard = false
+                    return@collect
+                }
+
+                if (current.mediaId != trackedMediaId) {
+                    val abandoned = trackedMediaId?.takeIf { !heard }
+                    trackedMediaId = current.mediaId
+                    heard = false
+                    abandoned?.let { mediaId ->
+                        mediaId.toTrackId()?.let { id ->
+                            runCatching { library.recordSkip(id) }
+                        }
+                    }
+                }
+
+                if (heard) return@collect
+                val duration = snapshot.durationMs
+                val threshold =
+                    if (duration > 0) minOf(PLAY_THRESHOLD_MS, duration / 2) else PLAY_THRESHOLD_MS
+                if (snapshot.positionMs < threshold) return@collect
+
+                heard = true
+                current.mediaId.toTrackId()?.let { id ->
+                    runCatching { library.recordPlay(id) }
+                }
+            }
+        }
+    }
+
+    /**
+     * The song behind a media id.
+     *
+     * The engine names every item by its content URI, which ends in the MediaStore id the
+     * library keys its rows by, so history is written against the same id everything else
+     * uses. Anything that does not parse simply goes uncounted.
+     */
+    private fun String.toTrackId(): Long? = runCatching {
+        Uri.parse(this).lastPathSegment?.toLongOrNull()
+    }.getOrNull()
+
     private companion object {
         const val SAVE_INTERVAL_MS = 5_000L
+
+        /**
+         * How much of a song has to be heard before it counts as played. Twenty seconds is
+         * the convention the streaming players settled on, and it is what stops a song
+         * skipped on the first bar from topping the most-played list.
+         */
+        const val PLAY_THRESHOLD_MS = 20_000L
     }
 }

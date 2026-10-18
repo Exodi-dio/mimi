@@ -3,6 +3,7 @@ package com.exodidio.mimi.library
 import android.content.Context
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
  * The library as the rest of the app sees it.
@@ -20,6 +21,7 @@ class LibraryRepository(
     private val metaDao = database.metaDao()
     private val favoriteDao = database.favoriteDao()
     private val playlistDao = database.playlistDao()
+    private val playStatDao = database.playStatDao()
 
     val tracks: Flow<List<Track>> = trackDao.observeAll()
 
@@ -110,6 +112,42 @@ class LibraryRepository(
     suspend fun removeFromPlaylist(playlistId: Long, trackId: Long) =
         playlistDao.removeEntry(playlistId, trackId)
 
+    /**
+     * Listening history, keyed by track.
+     *
+     * Handed out as a map rather than a list because every caller wants to ask "how many
+     * times has *this* song been played", and a list would turn each of those questions
+     * back into a scan.
+     */
+    val playStats: Flow<Map<Long, PlayStat>> = playStatDao.observeAll()
+        .map { stats -> stats.associateBy { it.trackId } }
+
+    fun recentlyPlayed(limit: Int): Flow<List<Track>> = playStatDao.observeRecentlyPlayed(limit)
+
+    fun mostPlayed(limit: Int): Flow<List<Track>> = playStatDao.observeMostPlayed(limit)
+
+    /**
+     * One listen, counted.
+     *
+     * The insert comes first so a song that has never been played still has a row to
+     * update; `IGNORE` on conflict means an existing row — and the history in it — is left
+     * exactly as it was.
+     */
+    suspend fun recordPlay(trackId: Long) {
+        database.withTransaction {
+            playStatDao.insertIfAbsent(PlayStat(trackId = trackId))
+            playStatDao.recordPlay(trackId, System.currentTimeMillis())
+        }
+    }
+
+    /** One skip, counted. A song skipped before it was ever played gets a row too. */
+    suspend fun recordSkip(trackId: Long) {
+        database.withTransaction {
+            playStatDao.insertIfAbsent(PlayStat(trackId = trackId))
+            playStatDao.recordSkip(trackId)
+        }
+    }
+
     suspend fun lastScanAt(): Long = metaDao.get(KEY_LAST_SCAN)?.toLongOrNull() ?: 0L
 
     /**
@@ -126,6 +164,10 @@ class LibraryRepository(
         database.withTransaction {
             trackDao.deleteAll()
             trackDao.insertAll(scanned)
+            // History for files that are gone, dropped in the same breath as the files
+            // themselves: the track list has just been rebuilt, so this is the one moment
+            // where "no longer on the device" is known rather than guessed.
+            playStatDao.prune()
             metaDao.put(MetaEntry(KEY_LAST_SCAN, now.toString()))
         }
         return scanned.size
