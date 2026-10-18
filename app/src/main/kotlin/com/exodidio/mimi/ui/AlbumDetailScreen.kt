@@ -39,6 +39,8 @@ fun AlbumDetailScreen(
     playingMediaId: String? = null,
     favoriteIds: Set<Long> = emptySet(),
     onToggleLove: (Long) -> Unit = {},
+    onPlayNext: (Track) -> Unit = {},
+    onAddToQueue: (Track) -> Unit = {},
     onAddToPlaylist: (Track) -> Unit = {},
 ) {
     val tracks by remember(albumId) { tracksForAlbum(albumId) }
@@ -86,6 +88,8 @@ fun AlbumDetailScreen(
                     onClick = { onPlay(tracks, index) },
                     isLoved = track.id in favoriteIds,
                     onToggleLove = { onToggleLove(track.id) },
+                    onPlayNext = { onPlayNext(track) },
+                    onAddToQueue = { onAddToQueue(track) },
                     onAddToPlaylist = { onAddToPlaylist(track) },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

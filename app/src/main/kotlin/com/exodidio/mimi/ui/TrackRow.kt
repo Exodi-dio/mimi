@@ -1,6 +1,7 @@
 package com.exodidio.mimi.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,17 +10,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Ellipsis
 import com.composables.icons.lucide.Heart
+import com.composables.icons.lucide.ListEnd
 import com.composables.icons.lucide.ListPlus
+import com.composables.icons.lucide.ListStart
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Trash2
 import com.exodidio.mimi.library.Track
@@ -28,9 +38,9 @@ import com.exodidio.mimi.library.Track
  * One song in a list. Shared by the songs list, album detail, artist detail, search
  * results and playlists so a track always looks the same wherever it is found.
  *
- * [onToggleLove], [onAddToPlaylist] and [onRemove] are optional because not every list
- * should change things: an album being previewed can show the song and nothing more,
- * and a playlist offers removal where a search result offers saving.
+ * The heart stays a button of its own because it is the one action taken often enough
+ * mid-scroll to deserve a direct tap. Everything else lives behind the overflow, which
+ * keeps the row two controls wide however many actions the app grows.
  */
 @Composable
 fun TrackRow(
@@ -40,86 +50,124 @@ fun TrackRow(
     modifier: Modifier = Modifier,
     isLoved: Boolean = false,
     onToggleLove: (() -> Unit)? = null,
+    onPlayNext: (() -> Unit)? = null,
+    onAddToQueue: (() -> Unit)? = null,
     onAddToPlaylist: (() -> Unit)? = null,
-    onRemove: (() -> Unit)? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
 ) {
     // Songs that name no album share the "unknown album" id, so they key on the file
     // itself rather than on an album they do not have.
     val artKey = track.albumId.takeIf { it != 0L }?.let { "album:$it" }
+    val hasMenu = onPlayNext != null || onAddToQueue != null ||
+        onAddToPlaylist != null || onRemoveFromPlaylist != null
+    var menuOpen by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Artwork(
-            bitmap = rememberAlbumArt(track.contentUri, targetPx = 128, cacheKey = artKey),
-            modifier = Modifier.size(44.dp),
-            shape = RoundedCornerShape(4.dp),
-            iconSize = 20.dp,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = track.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (isPlaying) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+    Box(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Artwork(
+                bitmap = rememberAlbumArt(track.contentUri, targetPx = 128, cacheKey = artKey),
+                modifier = Modifier.size(44.dp),
+                shape = RoundedCornerShape(4.dp),
+                iconSize = 20.dp,
             )
-            val subtitle = listOfNotNull(track.artist, track.album).joinToString(" \u00b7 ")
-            if (subtitle.isNotEmpty()) {
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = track.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isPlaying) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                val subtitle = listOfNotNull(track.artist, track.album).joinToString(" \u00b7 ")
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Text(
+                text = formatDuration(track.durationMs),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+            if (onToggleLove != null) {
+                IconButton(onClick = onToggleLove) {
+                    Icon(
+                        imageVector = Lucide.Heart,
+                        contentDescription = if (isLoved) "Remove from loved" else "Add to loved",
+                        tint = if (isLoved) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+            if (hasMenu) {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(
+                        imageVector = Lucide.Ellipsis,
+                        contentDescription = "More actions",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
-        if (onAddToPlaylist != null) {
-            IconButton(onClick = onAddToPlaylist) {
-                Icon(
-                    imageVector = Lucide.ListPlus,
-                    contentDescription = "Add to a playlist",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            if (onPlayNext != null) {
+                MenuAction("Play next", Lucide.ListStart) {
+                    menuOpen = false
+                    onPlayNext()
+                }
+            }
+            if (onAddToQueue != null) {
+                MenuAction("Add to queue", Lucide.ListEnd) {
+                    menuOpen = false
+                    onAddToQueue()
+                }
+            }
+            if (onAddToPlaylist != null) {
+                MenuAction("Add to playlist", Lucide.ListPlus) {
+                    menuOpen = false
+                    onAddToPlaylist()
+                }
+            }
+            if (onRemoveFromPlaylist != null) {
+                MenuAction("Remove from this playlist", Lucide.Trash2) {
+                    menuOpen = false
+                    onRemoveFromPlaylist()
+                }
             }
         }
-        if (onToggleLove != null) {
-            IconButton(onClick = onToggleLove) {
-                Icon(
-                    imageVector = Lucide.Heart,
-                    contentDescription = if (isLoved) "Remove from loved" else "Add to loved",
-                    tint = if (isLoved) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
-        }
-        if (onRemove != null) {
-            IconButton(onClick = onRemove) {
-                Icon(
-                    imageVector = Lucide.Trash2,
-                    contentDescription = "Remove from this playlist",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Text(
-            text = formatDuration(track.durationMs),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp),
-        )
     }
+}
+
+@Composable
+private fun MenuAction(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = { Icon(imageVector = icon, contentDescription = null) },
+        onClick = onClick,
+    )
 }

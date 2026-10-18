@@ -38,6 +38,8 @@ fun PlaylistDetailScreen(
     tracksForPlaylist: (Long) -> Flow<List<Track>>,
     onBack: () -> Unit,
     onPlay: (List<Track>, Int) -> Unit,
+    onPlayNext: (Track) -> Unit,
+    onAddToQueue: (Track) -> Unit,
     onRemove: (Long) -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
@@ -103,7 +105,9 @@ fun PlaylistDetailScreen(
                         track = track,
                         isPlaying = track.contentUri == playingMediaId,
                         onClick = { onPlay(tracks, index) },
-                        onRemove = { onRemove(track.id) },
+                        onPlayNext = { onPlayNext(track) },
+                        onAddToQueue = { onAddToQueue(track) },
+                        onRemoveFromPlaylist = { onRemove(track.id) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }

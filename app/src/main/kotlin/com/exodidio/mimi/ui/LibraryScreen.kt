@@ -23,6 +23,8 @@ fun LibraryScreen(
     scanning: Boolean,
     favoriteIds: Set<Long>,
     onToggleLove: (Long) -> Unit,
+    onPlayNext: (Track) -> Unit,
+    onAddToQueue: (Track) -> Unit,
     onAddToPlaylist: (Track) -> Unit,
     onRefresh: () -> Unit,
     onTrackClick: (index: Int) -> Unit,
@@ -62,6 +64,8 @@ fun LibraryScreen(
                         onClick = { onTrackClick(index) },
                         isLoved = track.id in favoriteIds,
                         onToggleLove = { onToggleLove(track.id) },
+                        onPlayNext = { onPlayNext(track) },
+                        onAddToQueue = { onAddToQueue(track) },
                         onAddToPlaylist = { onAddToPlaylist(track) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

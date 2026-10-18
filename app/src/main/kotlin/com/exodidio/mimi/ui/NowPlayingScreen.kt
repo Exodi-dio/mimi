@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Pause
@@ -59,6 +60,12 @@ fun NowPlayingScreen(
     onSeek: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
+    showQueue: Boolean,
+    onToggleQueue: () -> Unit,
+    onQueueItemClick: (Int) -> Unit,
+    onQueueMoveUp: (Int) -> Unit,
+    onQueueMoveDown: (Int) -> Unit,
+    onQueueRemove: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val current = state.current
@@ -82,14 +89,43 @@ fun NowPlayingScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.size(48.dp))
+            IconButton(onClick = onToggleQueue) {
+                Icon(
+                    imageVector = Lucide.ListMusic,
+                    contentDescription = if (showQueue) "Hide up next" else "Show up next",
+                    tint = accent(showQueue),
+                )
+            }
         }
 
-        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            if (showQueue) {
+                QueuePanel(
+                    queue = state.queue,
+                    currentIndex = state.currentIndex,
+                    shuffled = state.shuffleEnabled,
+                    onItemClick = onQueueItemClick,
+                    onMoveUp = onQueueMoveUp,
+                    onMoveDown = onQueueMoveDown,
+                    onRemove = onQueueRemove,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    AlbumArtwork(mediaId = current?.mediaId)
+                }
+            }
+        }
 
-        AlbumArtwork(mediaId = current?.mediaId)
-
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
 
         Text(
             text = current?.title.orEmpty(),
@@ -153,8 +189,6 @@ fun NowPlayingScreen(
                 )
             }
         }
-
-        Spacer(Modifier.weight(1f))
     }
 }
 

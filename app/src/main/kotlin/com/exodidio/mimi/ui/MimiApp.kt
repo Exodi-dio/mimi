@@ -55,6 +55,10 @@ fun MimiApp() {
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 
+    // Which face the player shows: the artwork, or what is coming up. The skin turns this
+    // into a swipe between pages, but it flips the same state either way.
+    var showQueue by rememberSaveable { mutableStateOf(false) }
+
     // Which song is waiting to be put in a playlist, if any.
     var addTarget by remember { mutableStateOf<Track?>(null) }
     var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
@@ -75,13 +79,19 @@ fun MimiApp() {
             if (showNowPlaying && hasTrack) {
                 NowPlayingScreen(
                     state = playback,
-                    onClose = { showNowPlaying = false },
+                    onClose = { showNowPlaying = false; showQueue = false },
                     onPlayPause = playerViewModel::togglePlayPause,
                     onNext = playerViewModel::next,
                     onPrevious = playerViewModel::previous,
                     onSeek = playerViewModel::seekTo,
                     onToggleShuffle = playerViewModel::toggleShuffle,
                     onCycleRepeat = playerViewModel::cycleRepeat,
+                    showQueue = showQueue,
+                    onToggleQueue = { showQueue = !showQueue },
+                    onQueueItemClick = playerViewModel::jumpToQueueItem,
+                    onQueueMoveUp = { index -> playerViewModel.moveInQueue(index, index - 1) },
+                    onQueueMoveDown = { index -> playerViewModel.moveInQueue(index, index + 1) },
+                    onQueueRemove = playerViewModel::removeFromQueue,
                 )
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -99,6 +109,8 @@ fun MimiApp() {
                                 scanning = scanning,
                                 playingMediaId = playingMediaId,
                                 onPlay = { list, index -> playerViewModel.play(list, index) },
+                                onPlayNext = playerViewModel::playNext,
+                                onAddToQueue = playerViewModel::addToQueue,
                                 onAddToPlaylist = { addTarget = it },
                                 onOpenAlbum = { navigator.push(Screen.AlbumDetail(it.albumId)) },
                                 onOpenArtist = { navigator.push(Screen.ArtistDetail(it.artist)) },
@@ -111,6 +123,8 @@ fun MimiApp() {
                                 favoriteIds = favoriteIds,
                                 playingMediaId = playingMediaId,
                                 onToggleLove = libraryViewModel::toggleLoved,
+                                onPlayNext = playerViewModel::playNext,
+                                onAddToQueue = playerViewModel::addToQueue,
                                 onAddToPlaylist = { addTarget = it },
                                 onTrackClick = { index -> playerViewModel.play(lovedTracks, index) },
                             )
@@ -122,6 +136,8 @@ fun MimiApp() {
                                 playingMediaId = playingMediaId,
                                 favoriteIds = favoriteIds,
                                 onToggleLove = libraryViewModel::toggleLoved,
+                                onPlayNext = playerViewModel::playNext,
+                                onAddToQueue = playerViewModel::addToQueue,
                                 onAddToPlaylist = { addTarget = it },
                                 onTrackClick = { index -> playerViewModel.play(searchResults, index) },
                             )
@@ -138,6 +154,8 @@ fun MimiApp() {
                                 playingMediaId = playingMediaId,
                                 favoriteIds = favoriteIds,
                                 onToggleLove = libraryViewModel::toggleLoved,
+                                onPlayNext = playerViewModel::playNext,
+                                onAddToQueue = playerViewModel::addToQueue,
                                 onAddToPlaylist = { addTarget = it },
                                 onBack = navigator::pop,
                                 onPlay = { list, index -> playerViewModel.play(list, index) },
@@ -150,6 +168,8 @@ fun MimiApp() {
                                 playingMediaId = playingMediaId,
                                 favoriteIds = favoriteIds,
                                 onToggleLove = libraryViewModel::toggleLoved,
+                                onPlayNext = playerViewModel::playNext,
+                                onAddToQueue = playerViewModel::addToQueue,
                                 onAddToPlaylist = { addTarget = it },
                                 onBack = navigator::pop,
                                 onAlbumClick = { navigator.push(Screen.AlbumDetail(it.albumId)) },
@@ -165,6 +185,8 @@ fun MimiApp() {
                                     playingMediaId = playingMediaId,
                                     onBack = navigator::pop,
                                     onPlay = { list, index -> playerViewModel.play(list, index) },
+                                    onPlayNext = playerViewModel::playNext,
+                                    onAddToQueue = playerViewModel::addToQueue,
                                     onRemove = { trackId ->
                                         libraryViewModel.removeFromPlaylist(screen.playlistId, trackId)
                                     },
@@ -275,6 +297,8 @@ private fun LibraryHome(
     scanning: Boolean,
     playingMediaId: String?,
     onPlay: (List<Track>, Int) -> Unit,
+    onPlayNext: (Track) -> Unit,
+    onAddToQueue: (Track) -> Unit,
     onAddToPlaylist: (Track) -> Unit,
     onOpenAlbum: (com.exodidio.mimi.library.AlbumSummary) -> Unit,
     onOpenArtist: (com.exodidio.mimi.library.ArtistSummary) -> Unit,
@@ -290,6 +314,8 @@ private fun LibraryHome(
                 scanning = scanning,
                 favoriteIds = favoriteIds,
                 onToggleLove = libraryViewModel::toggleLoved,
+                onPlayNext = onPlayNext,
+                onAddToQueue = onAddToQueue,
                 onAddToPlaylist = onAddToPlaylist,
                 onRefresh = { libraryViewModel.refresh(force = true) },
                 playingMediaId = playingMediaId,

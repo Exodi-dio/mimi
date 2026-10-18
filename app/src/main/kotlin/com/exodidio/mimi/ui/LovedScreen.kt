@@ -30,6 +30,8 @@ fun LovedScreen(
     tracks: List<Track>,
     favoriteIds: Set<Long>,
     onToggleLove: (Long) -> Unit,
+    onPlayNext: (Track) -> Unit,
+    onAddToQueue: (Track) -> Unit,
     onAddToPlaylist: (Track) -> Unit,
     onTrackClick: (index: Int) -> Unit,
     playingMediaId: String? = null,
@@ -76,6 +78,8 @@ fun LovedScreen(
                         onClick = { onTrackClick(index) },
                         isLoved = track.id in favoriteIds,
                         onToggleLove = { onToggleLove(track.id) },
+                        onPlayNext = { onPlayNext(track) },
+                        onAddToQueue = { onAddToQueue(track) },
                         onAddToPlaylist = { onAddToPlaylist(track) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
