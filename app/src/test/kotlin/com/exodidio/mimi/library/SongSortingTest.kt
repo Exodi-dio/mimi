@@ -34,7 +34,8 @@ class SongSortingTest {
         )
 
         assertEquals(
-            listOf("Two", "Three", "One"),
+            // Ada's two songs come first, and are settled on their titles within that.
+            listOf("Three", "Two", "One"),
             songs.sortedWith(SongSort.ARTIST.comparator(descending = false)).titles(),
         )
     }
