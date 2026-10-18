@@ -22,6 +22,7 @@ androidx.media3 (ExoPlayer)      Apache-2.0
 Jetpack Compose / Material 3    Apache-2.0
 androidx.room                   Apache-2.0
 Kotlin / kotlinx.coroutines     Apache-2.0
+composablehorizons/compose-icons  MIT      Lucide icon set (ImageVector)
 
 --------------------------------------------------------------------------------
 Design references
