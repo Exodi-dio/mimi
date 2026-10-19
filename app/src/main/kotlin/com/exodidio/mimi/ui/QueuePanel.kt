@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -21,6 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +63,14 @@ fun QueuePanel(
     modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+
+    // A long queue is a queue you cannot find yourself in, so it opens on the song that is
+    // playing rather than at the very top. The same happens when the song changes, and when
+    // a row is tapped — the list follows the music instead of the music getting lost in it.
+    LaunchedEffect(currentIndex) {
+        if (currentIndex in queue.indices) listState.scrollToItem(currentIndex)
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -128,6 +138,7 @@ fun QueuePanel(
             )
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
