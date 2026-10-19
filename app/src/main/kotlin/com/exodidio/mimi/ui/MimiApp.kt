@@ -263,6 +263,22 @@ private fun MimiAppContent() {
                                 trackCount = tracks.size,
                                 scanning = scanning,
                                 onRescan = { libraryViewModel.refresh(force = true) },
+                                onOpenStatistics = { navigator.push(Screen.Statistics) },
+                            )
+
+                            Screen.Statistics -> StatisticsScreen(
+                                stats = libraryStats(
+                                    songs = tracks,
+                                    albumCount = albums.size,
+                                    artistCount = artists.size,
+                                    lovedIds = favoriteIds,
+                                    playlistCount = playlists.size,
+                                    playStats = playStats,
+                                ),
+                                mostPlayed = mostPlayed,
+                                playingMediaId = playingMediaId,
+                                onBack = navigator::pop,
+                                onPlayTrack = { playerViewModel.play(listOf(it), 0) },
                             )
 
                             is Screen.AlbumDetail -> AlbumDetailScreen(

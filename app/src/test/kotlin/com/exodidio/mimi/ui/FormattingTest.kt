@@ -54,4 +54,31 @@ class FormattingTest {
         assertEquals("2 MB", formatFileSize(2_000_000L))
         assertEquals("2.5 MB", formatFileSize(2_500_000L))
     }
+
+    @Test
+    fun `an empty library has no running time to speak of`() {
+        assertEquals("No music yet", formatTotalDuration(0L))
+        assertEquals("No music yet", formatTotalDuration(-1L))
+    }
+
+    @Test
+    fun `a running time under an hour is counted in minutes`() {
+        assertEquals("30 seconds", formatTotalDuration(30_000L))
+        assertEquals("1 minute", formatTotalDuration(60_000L))
+        assertEquals("59 minutes", formatTotalDuration(3_540_000L))
+    }
+
+    @Test
+    fun `a running time under a day is counted in hours and minutes`() {
+        assertEquals("1 hour", formatTotalDuration(3_600_000L))
+        assertEquals("1 hour 5 minutes", formatTotalDuration(3_900_000L))
+        assertEquals("23 hours", formatTotalDuration(82_800_000L))
+    }
+
+    @Test
+    fun `a running time past a day drops the minutes`() {
+        assertEquals("1 day", formatTotalDuration(86_400_000L))
+        assertEquals("1 day 1 hour", formatTotalDuration(90_000_000L))
+        assertEquals("2 days 3 hours", formatTotalDuration(183_600_000L))
+    }
 }

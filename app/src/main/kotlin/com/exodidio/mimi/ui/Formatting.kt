@@ -45,3 +45,28 @@ fun formatFileSize(bytes: Long): String {
     val text = if (rounded % 1.0 == 0.0) rounded.toLong().toString() else rounded.toString()
     return "$text ${units[unit]}"
 }
+
+/**
+ * Says how long a whole library would take to play, in the units a person would use.
+ *
+ * A total can run to days, and "73:12:44" is a number nobody converts in their head, so
+ * hours are only kept until there are days, and minutes only until there are hours.
+ * Anything under a minute reads as seconds, because "0 hours" is a worse answer than "0
+ * minutes" to a library that has just been emptied.
+ */
+fun formatTotalDuration(durationMs: Long): String {
+    if (durationMs <= 0L) return "No music yet"
+
+    val totalSeconds = durationMs / 1000
+    val days = totalSeconds / 86_400
+    val hours = (totalSeconds % 86_400) / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+
+    if (days > 0) return plural(days, "day") + if (hours > 0) " ${plural(hours, "hour")}" else ""
+    if (hours > 0) return plural(hours, "hour") + if (minutes > 0) " ${plural(minutes, "minute")}" else ""
+    if (minutes > 0) return plural(minutes, "minute")
+    return plural(totalSeconds, "second")
+}
+
+private fun plural(count: Long, word: String): String =
+    if (count == 1L) "1 $word" else "$count ${word}s"

@@ -22,6 +22,9 @@ sealed interface Screen {
 
     data object Settings : Screen
 
+    /** What the library adds up to, reached from the about page. */
+    data object Statistics : Screen
+
     data class AlbumDetail(val albumId: Long) : Screen
 
     data class ArtistDetail(val artist: String) : Screen

@@ -51,6 +51,7 @@ fun SettingsScreen(
     trackCount: Int,
     scanning: Boolean,
     onRescan: () -> Unit,
+    onOpenStatistics: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(SettingsTab.LIBRARY) }
@@ -91,7 +92,7 @@ fun SettingsScreen(
                     onChooseTheme = { openChoice = SettingsChoice.THEME },
                 )
 
-                SettingsTab.ABOUT -> AboutPage()
+                SettingsTab.ABOUT -> AboutPage(onOpenStatistics = onOpenStatistics)
             }
             SettingsPageFooter()
         }
@@ -269,7 +270,7 @@ private fun AppearancePage(
 }
 
 @Composable
-private fun AboutPage() {
+private fun AboutPage(onOpenStatistics: () -> Unit) {
     val context = LocalContext.current
     val version = remember(context) {
         runCatching {
@@ -284,6 +285,13 @@ private fun AboutPage() {
     SettingsNote(
         "Plays the files already on this device. No account, no adverts, and nothing sent " +
             "anywhere. Lyrics are read out of the files themselves."
+    )
+
+    SettingsSectionHeading("Numbers")
+    SettingsActionRow(
+        title = "Statistics",
+        subtitle = "How much there is, and how much of it you have played",
+        onClick = onOpenStatistics,
     )
 }
 
