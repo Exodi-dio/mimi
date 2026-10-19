@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -48,6 +49,27 @@ fun MiniPlayer(
     Surface(modifier = modifier.fillMaxWidth(), tonalElevation = 3.dp) {
         Column {
             HorizontalDivider()
+
+            // How far in the song is, before the song itself. A strip this short has no room
+            // for a scrubber, and a listener glancing at it wants to know whether to bother
+            // opening it rather than to move the playhead.
+            if (state.durationMs > 0L) {
+                val fraction = (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction)
+                            .height(2.dp)
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                }
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier

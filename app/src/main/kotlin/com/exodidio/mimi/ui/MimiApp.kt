@@ -7,6 +7,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -206,6 +207,7 @@ private fun MimiAppContent() {
                                 recentlyAdded = recentlyAdded,
                                 recentlyPlayed = recentlyPlayed,
                                 mostPlayed = mostPlayed,
+                                loved = lovedTracks,
                                 hasLibrary = tracks.isNotEmpty(),
                                 onShuffleAll = { playerViewModel.shuffleAll(tracks) },
                                 onTrackClick = { list, index -> playerViewModel.play(list, index) },
@@ -558,6 +560,9 @@ private fun LibraryHome(
 
     Column(modifier = Modifier.fillMaxSize()) {
         LibrarySectionSwitcher(selected = section, onSelect = onSectionChange)
+        // A rule under the pills, so they read as a way of looking at the library rather
+        // than as the first thing in it. The settings pages are arranged the same way.
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         when (section) {
             LibrarySection.SONGS -> LibraryScreen(

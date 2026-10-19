@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,8 +36,9 @@ import com.exodidio.mimi.library.Track
  * What the app opens on.
  *
  * A library is a place you browse when you know what you want; this is for when you do
- * not. It answers three questions in the order they are usually asked — what is new, what
- * was I just listening to, and what do I actually like — and offers to just start playing.
+ * not. It answers the questions in the order they are usually asked — what is new, what
+ * was I just listening to, what do I actually like, and what have I marked myself — and
+ * offers to just start playing.
  *
  * A section with nothing in it is left out rather than shown empty. On a fresh library
  * that means the only thing on screen is "Shuffle all", which is honest: there is a
@@ -46,6 +49,7 @@ fun HomeScreen(
     recentlyAdded: List<Track>,
     recentlyPlayed: List<Track>,
     mostPlayed: List<Track>,
+    loved: List<Track>,
     onTrackClick: (List<Track>, Int) -> Unit,
     onShuffleAll: () -> Unit,
     modifier: Modifier = Modifier,
@@ -55,6 +59,7 @@ fun HomeScreen(
         recentlyAdded.takeIf { it.isNotEmpty() }?.let { "Recently added" to it },
         recentlyPlayed.takeIf { it.isNotEmpty() }?.let { "Recently played" to it },
         mostPlayed.takeIf { it.isNotEmpty() }?.let { "Most played" to it },
+        loved.takeIf { it.isNotEmpty() }?.let { "Loved" to it },
     )
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -101,21 +106,19 @@ private fun ShuffleAllRow(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = Lucide.Shuffle,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = "Shuffle all",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        // A button rather than a row that looks like a section heading. It is the one
+        // action on this screen, and it should not have to be recognised as one.
+        FilledTonalButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+            Icon(
+                imageVector = Lucide.Shuffle,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Shuffle all")
+        }
     }
 }
 
