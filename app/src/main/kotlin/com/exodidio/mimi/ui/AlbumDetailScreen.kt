@@ -16,6 +16,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.Shuffle
 import com.exodidio.mimi.library.Track
 import kotlinx.coroutines.flow.Flow
 
@@ -36,6 +38,7 @@ fun AlbumDetailScreen(
     onBack: () -> Unit,
     onPlay: (List<Track>, Int) -> Unit,
     modifier: Modifier = Modifier,
+    onShuffle: ((List<Track>) -> Unit)? = null,
     playingMediaId: String? = null,
     favoriteIds: Set<Long> = emptySet(),
     onToggleLove: (Long) -> Unit = {},
@@ -77,6 +80,17 @@ fun AlbumDetailScreen(
                 Icon(imageVector = Lucide.Play, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Play")
+            }
+            if (onShuffle != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedButton(
+                    onClick = { onShuffle(tracks) },
+                    enabled = tracks.isNotEmpty(),
+                ) {
+                    Icon(imageVector = Lucide.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Shuffle")
+                }
             }
         }
 

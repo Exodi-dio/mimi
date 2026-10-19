@@ -17,6 +17,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.Shuffle
 import com.exodidio.mimi.library.Track
 
 /**
@@ -40,6 +42,7 @@ fun TrackListScreen(
     tracks: List<Track>,
     onBack: () -> Unit,
     onPlay: (List<Track>, Int) -> Unit,
+    onShuffle: ((List<Track>) -> Unit)? = null,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     artworkUri: String? = null,
@@ -82,6 +85,21 @@ fun TrackListScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Play")
+            }
+            if (onShuffle != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedButton(
+                    onClick = { onShuffle(tracks) },
+                    enabled = tracks.isNotEmpty(),
+                ) {
+                    Icon(
+                        imageVector = Lucide.Shuffle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Shuffle")
+                }
             }
         }
 

@@ -292,6 +292,7 @@ private fun MimiAppContent() {
                                 onAddToPlaylist = { addTarget = it },
                                 onBack = navigator::pop,
                                 onPlay = { list, index -> playerViewModel.play(list, index) },
+                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
                             )
 
                             is Screen.ArtistDetail -> ArtistDetailScreen(
@@ -318,6 +319,7 @@ private fun MimiAppContent() {
                                     playingMediaId = playingMediaId,
                                     onBack = navigator::pop,
                                     onPlay = { list, index -> playerViewModel.play(list, index) },
+                                    onShuffle = { list -> playerViewModel.shuffleAll(list) },
                                     onPlayNext = playerViewModel::playNext,
                                     onAddToQueue = playerViewModel::addToQueue,
                                     onRemove = { trackId ->
@@ -335,6 +337,7 @@ private fun MimiAppContent() {
                                 favoriteIds = favoriteIds,
                                 onBack = navigator::pop,
                                 onPlay = { list, index -> playerViewModel.play(list, index) },
+                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
                                 onToggleLove = libraryViewModel::toggleLoved,
                                 onPlayNext = playerViewModel::playNext,
                                 onAddToQueue = playerViewModel::addToQueue,
@@ -349,6 +352,7 @@ private fun MimiAppContent() {
                                 favoriteIds = favoriteIds,
                                 onBack = navigator::pop,
                                 onPlay = { list, index -> playerViewModel.play(list, index) },
+                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
                                 onToggleLove = libraryViewModel::toggleLoved,
                                 onPlayNext = playerViewModel::playNext,
                                 onAddToQueue = playerViewModel::addToQueue,
@@ -363,6 +367,7 @@ private fun MimiAppContent() {
                                 favoriteIds = favoriteIds,
                                 onBack = navigator::pop,
                                 onPlay = { list, index -> playerViewModel.play(list, index) },
+                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
                                 onToggleLove = libraryViewModel::toggleLoved,
                                 onPlayNext = playerViewModel::playNext,
                                 onAddToQueue = playerViewModel::addToQueue,
@@ -383,6 +388,7 @@ private fun MimiAppContent() {
                                     favoriteIds = favoriteIds,
                                     onBack = navigator::pop,
                                     onPlay = { list, index -> playerViewModel.play(list, index) },
+                                    onShuffle = { list -> playerViewModel.shuffleAll(list) },
                                     onToggleLove = libraryViewModel::toggleLoved,
                                     onPlayNext = playerViewModel::playNext,
                                     onAddToQueue = playerViewModel::addToQueue,
