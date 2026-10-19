@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Ellipsis
 import com.composables.icons.lucide.Heart
+import com.composables.icons.lucide.Info
 import com.composables.icons.lucide.ListEnd
 import com.composables.icons.lucide.ListPlus
 import com.composables.icons.lucide.ListStart
@@ -41,6 +42,9 @@ import com.exodidio.mimi.library.Track
  * The heart stays a button of its own because it is the one action taken often enough
  * mid-scroll to deserve a direct tap. Everything else lives behind the overflow, which
  * keeps the row two controls wide however many actions the app grows.
+ *
+ * The overflow is always offered, because a song's details are always worth asking for —
+ * the actions that are not available simply are not listed.
  */
 @Composable
 fun TrackRow(
@@ -58,8 +62,7 @@ fun TrackRow(
     // Songs that name no album share the "unknown album" id, so they key on the file
     // itself rather than on an album they do not have.
     val artKey = track.albumId.takeIf { it != 0L }?.let { "album:$it" }
-    val hasMenu = onPlayNext != null || onAddToQueue != null ||
-        onAddToPlaylist != null || onRemoveFromPlaylist != null
+    val actions = LocalTrackActions.current
     var menuOpen by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxWidth()) {
@@ -126,18 +129,20 @@ fun TrackRow(
                     )
                 }
             }
-            if (hasMenu) {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(
-                        imageVector = Lucide.Ellipsis,
-                        contentDescription = "More actions",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    imageVector = Lucide.Ellipsis,
+                    contentDescription = "More actions",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            MenuAction("Song info", Lucide.Info) {
+                menuOpen = false
+                actions.onShowInfo(track)
+            }
             if (onPlayNext != null) {
                 MenuAction("Play next", Lucide.ListStart) {
                     menuOpen = false

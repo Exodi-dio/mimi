@@ -35,4 +35,7 @@ sealed interface Screen {
     data class YearDetail(val year: Int) : Screen
 
     data class FolderDetail(val folder: String) : Screen
+
+    /** Everything known about one song, reached from any row's overflow. */
+    data class TrackInfo(val trackId: Long) : Screen
 }

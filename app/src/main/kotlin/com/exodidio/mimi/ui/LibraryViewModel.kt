@@ -11,6 +11,7 @@ import com.exodidio.mimi.library.FolderSummary
 import com.exodidio.mimi.library.GenreSummary
 import com.exodidio.mimi.library.LibraryChangeObserver
 import com.exodidio.mimi.library.MinSongLength
+import com.exodidio.mimi.library.PlayStat
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.Track
 import com.exodidio.mimi.library.YearSummary
@@ -121,6 +122,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList(),
         )
+
+    /** How often each song has been played and skipped, keyed by song id. */
+    val playStats: StateFlow<Map<Long, PlayStat>> = library.playStats.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyMap(),
+    )
 
     private val _query = MutableStateFlow("")
 

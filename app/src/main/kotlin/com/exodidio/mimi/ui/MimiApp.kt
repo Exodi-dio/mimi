@@ -1,5 +1,7 @@
 package com.exodidio.mimi.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -20,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.Folder
@@ -80,12 +83,14 @@ private fun MimiAppContent() {
     val recentlyAdded by libraryViewModel.recentlyAdded.collectAsStateWithLifecycle()
     val recentlyPlayed by libraryViewModel.recentlyPlayed.collectAsStateWithLifecycle()
     val mostPlayed by libraryViewModel.mostPlayed.collectAsStateWithLifecycle()
+    val playStats by libraryViewModel.playStats.collectAsStateWithLifecycle()
     val scanning by libraryViewModel.scanning.collectAsStateWithLifecycle()
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
     val sleepRemaining by playerViewModel.sleepRemaining.collectAsStateWithLifecycle()
     val settings = LocalSettings.current
+    val context = LocalContext.current
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 
@@ -117,7 +122,36 @@ private fun MimiAppContent() {
         navigator.push(destination)
     }
 
+    /**
+     * Hands a song's file to another app.
+     *
+     * The song is addressed by its media store uri rather than by its path, so the app
+     * receiving it is granted the one read it needs and nothing more. Wrapped, because
+     * having no app that accepts audio is not a reason to fall over.
+     */
+    fun share(track: Track) {
+        runCatching {
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = track.mimeType ?: "audio/*"
+                putExtra(Intent.EXTRA_STREAM, Uri.parse(track.contentUri))
+                putExtra(Intent.EXTRA_TITLE, track.title)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(send, null).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+        }
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        // A song's details are the same request wherever the song is found, so the answer
+        // is handed down rather than threaded through every list that draws a row.
+        CompositionLocalProvider(
+            LocalTrackActions provides TrackActions(
+                onShowInfo = { navigator.push(Screen.TrackInfo(it.id)) },
+            ),
+        ) {
         AudioPermissionGate {
             // The player is an overlay, so it takes over the back gesture before the
             // navigation stack does.
@@ -336,6 +370,33 @@ private fun MimiAppContent() {
                                     emptyMessage = "This folder holds no music.",
                                 )
                             }
+
+                            is Screen.TrackInfo -> {
+                                val track = tracks.firstOrNull { it.id == screen.trackId }
+                                TrackInfoScreen(
+                                    track = track,
+                                    stat = playStats[screen.trackId],
+                                    playingMediaId = playingMediaId,
+                                    onBack = navigator::pop,
+                                    onPlay = { track?.let { playerViewModel.play(listOf(it), 0) } },
+                                    onPlayNext = { track?.let(playerViewModel::playNext) },
+                                    onAddToQueue = { track?.let(playerViewModel::addToQueue) },
+                                    onAddToPlaylist = { track?.let { addTarget = it } },
+                                    onShare = { track?.let(::share) },
+                                    onGoToAlbum = {
+                                        track?.let {
+                                            navigator.pop()
+                                            navigator.push(Screen.AlbumDetail(it.albumId))
+                                        }
+                                    },
+                                    onGoToArtist = {
+                                        track?.artist?.let { artist ->
+                                            navigator.pop()
+                                            navigator.push(Screen.ArtistDetail(artist))
+                                        }
+                                    },
+                                )
+                            }
                         }
                     }
 
@@ -416,6 +477,7 @@ private fun MimiAppContent() {
                     onDismiss = { deleteTarget = null },
                 )
             }
+        }
         }
     }
 }

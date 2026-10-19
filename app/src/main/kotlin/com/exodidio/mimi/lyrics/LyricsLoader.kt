@@ -49,7 +49,7 @@ class LyricsLoader(private val context: Context) {
  */
 private class DescriptorSource(private val descriptor: ParcelFileDescriptor) : ByteSource {
 
-    override val size: Long = descriptor.statSize.toLong()
+    override val size: Long = descriptor.statSize
 
     override fun read(offset: Long, length: Int): ByteArray {
         if (offset < 0L || length <= 0) return ByteArray(0)
