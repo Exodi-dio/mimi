@@ -84,6 +84,32 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun removeFromQueue(index: Int) = engine.removeFromQueue(index)
 
+    fun clearUpcoming() = engine.clearUpcoming()
+
+    /**
+     * Keeps what is queued as a playlist.
+     *
+     * The queue holds media ids, and the songs themselves are looked up again rather than
+     * remembered, so a playlist made from a queue is made of songs the library still has.
+     * Anything that has since gone from the device is simply left out.
+     */
+    fun saveQueueAsPlaylist(name: String) {
+        if (name.isBlank()) return
+        val mediaIds = engine.state.value.queue.map { it.mediaId }
+        if (mediaIds.isEmpty()) return
+
+        viewModelScope.launch {
+            runCatching {
+                val byUri = library.tracks.first().associateBy { it.contentUri }
+                val ordered = mediaIds.mapNotNull { byUri[it] }
+                if (ordered.isEmpty()) return@runCatching
+
+                val playlistId = library.createPlaylist(name)
+                ordered.forEach { library.addToPlaylist(playlistId, it.id) }
+            }
+        }
+    }
+
     /**
      * Nudges playback by [deltaMs], kept inside the song.
      *

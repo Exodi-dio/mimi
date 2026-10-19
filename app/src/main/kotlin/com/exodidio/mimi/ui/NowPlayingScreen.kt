@@ -79,6 +79,8 @@ fun NowPlayingScreen(
     onQueueMoveUp: (Int) -> Unit,
     onQueueMoveDown: (Int) -> Unit,
     onQueueRemove: (Int) -> Unit,
+    onSaveQueue: () -> Unit,
+    onClearUpcoming: () -> Unit,
     sleepRemaining: Long?,
     onStartSleepTimer: (Long) -> Unit,
     onCancelSleepTimer: () -> Unit,
@@ -171,6 +173,8 @@ fun NowPlayingScreen(
                     onMoveUp = onQueueMoveUp,
                     onMoveDown = onQueueMoveDown,
                     onRemove = onQueueRemove,
+                    onSaveAsPlaylist = onSaveQueue,
+                    onClearUpcoming = onClearUpcoming,
                     modifier = Modifier.fillMaxSize(),
                 )
 

@@ -1,6 +1,7 @@
 package com.exodidio.mimi.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,19 +13,28 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowDown
 import com.composables.icons.lucide.ArrowUp
+import com.composables.icons.lucide.Ellipsis
+import com.composables.icons.lucide.ListX
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Shuffle
 import com.composables.icons.lucide.X
 import com.exodidio.mimi.playback.QueueItem
@@ -46,8 +56,12 @@ fun QueuePanel(
     onMoveUp: (Int) -> Unit,
     onMoveDown: (Int) -> Unit,
     onRemove: (Int) -> Unit,
+    onSaveAsPlaylist: () -> Unit,
+    onClearUpcoming: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
+
     Column(modifier = modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -75,6 +89,33 @@ fun QueuePanel(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            Box {
+                IconButton(onClick = { menuOpen = true }, enabled = queue.isNotEmpty()) {
+                    Icon(
+                        imageVector = Lucide.Ellipsis,
+                        contentDescription = "Queue options",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Keep as a playlist") },
+                        leadingIcon = { Icon(Lucide.Save, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onSaveAsPlaylist()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Clear what is next") },
+                        leadingIcon = { Icon(Lucide.ListX, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onClearUpcoming()
+                        },
+                    )
+                }
             }
         }
 

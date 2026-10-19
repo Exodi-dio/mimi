@@ -103,6 +103,8 @@ private fun MimiAppContent() {
     var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<PlaylistSummary?>(null) }
     var deleteTarget by remember { mutableStateOf<PlaylistSummary?>(null) }
+    // The queue can be kept, but only once the listener has named it.
+    var savingQueue by remember { mutableStateOf(false) }
 
     val hasTrack = playback.current != null
     val screen = navigator.current
@@ -175,6 +177,8 @@ private fun MimiAppContent() {
                     onQueueMoveUp = { index -> playerViewModel.moveInQueue(index, index - 1) },
                     onQueueMoveDown = { index -> playerViewModel.moveInQueue(index, index + 1) },
                     onQueueRemove = playerViewModel::removeFromQueue,
+                    onSaveQueue = { savingQueue = true },
+                    onClearUpcoming = playerViewModel::clearUpcoming,
                     sleepRemaining = sleepRemaining,
                     onStartSleepTimer = playerViewModel::startSleepTimer,
                     onCancelSleepTimer = playerViewModel::cancelSleepTimer,
@@ -448,6 +452,19 @@ private fun MimiAppContent() {
                         creatingPlaylist = false
                     },
                     onDismiss = { creatingPlaylist = false },
+                )
+            }
+
+            if (savingQueue) {
+                NameDialog(
+                    title = "Keep the queue",
+                    confirmLabel = "Save",
+                    initialValue = "Queued songs",
+                    onConfirm = { name ->
+                        playerViewModel.saveQueueAsPlaylist(name)
+                        savingQueue = false
+                    },
+                    onDismiss = { savingQueue = false },
                 )
             }
 

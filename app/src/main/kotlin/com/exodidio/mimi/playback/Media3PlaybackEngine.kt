@@ -180,6 +180,16 @@ class Media3PlaybackEngine(
         player.removeMediaItem(index)
     }
 
+    override fun clearUpcoming() {
+        val player = controller ?: return
+        val current = player.currentMediaItemIndex
+        if (current < 0) return
+
+        val from = current + 1
+        val count = player.mediaItemCount - from
+        if (count > 0) player.removeMediaItems(from, from + count)
+    }
+
     /**
      * Media3 only reports position changes to listeners when something else happens,
      * so the progress bar needs its own heartbeat.

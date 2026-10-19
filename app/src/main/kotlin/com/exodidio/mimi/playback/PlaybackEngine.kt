@@ -92,4 +92,12 @@ interface PlaybackEngine {
 
     /** Drops a queue entry. Removing the one playing moves playback along to the next. */
     fun removeFromQueue(index: Int)
+
+    /**
+     * Drops everything queued after the song that is playing.
+     *
+     * The song itself stays: clearing is meant to undo a queue that grew too long, not to
+     * stop the music.
+     */
+    fun clearUpcoming()
 }
