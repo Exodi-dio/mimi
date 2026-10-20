@@ -35,7 +35,15 @@ private enum class SettingsTab(val label: String) {
 }
 
 /** Which question, if any, is currently open in a dialog. */
-private enum class SettingsChoice { MIN_LENGTH, THEME, SONG_SORT, ALBUM_SORT, ARTIST_SORT, EQUALIZER_PRESET }
+private enum class SettingsChoice {
+    MIN_LENGTH,
+    THEME,
+    SONG_SORT,
+    ALBUM_SORT,
+    ARTIST_SORT,
+    EQUALIZER_PRESET,
+    EXCLUDED_FOLDERS,
+}
 
 /**
  * Settings, split into pages.
