@@ -12,12 +12,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,6 +34,8 @@ import com.exodidio.mimi.lyrics.AndroidRomanizationEngine
 import com.exodidio.mimi.lyrics.Lyrics
 import com.exodidio.mimi.lyrics.RomanizeLyrics
 import com.exodidio.mimi.lyrics.RomanizedStatus
+import com.exodidio.mimi.library.Track
+import kotlinx.coroutines.launch
 
 /** What there is to show for the song playing right now. */
 sealed interface LyricsState {
@@ -201,4 +208,82 @@ private fun rememberRomanised(lyrics: Lyrics, enabled: Boolean): List<String>? {
             if (line.status == RomanizedStatus.Converted) line.text else ""
         }
     }.value
+}
+
+/**
+ * What to show when a song carries no words of its own.
+ *
+ * The search is offered rather than performed because this is the only thing in the app
+ * that uses the internet. A player that quietly reaches out because a file is missing a
+ * tag is a different app from one that asks first, and the difference is worth one tap.
+ *
+ * An answer is kept for as long as the song is, so opening the words again does not ask
+ * again; a new song starts from nothing, since an answer about the last one is not an
+ * answer about this one.
+ */
+@Composable
+fun MissingLyrics(
+    track: Track?,
+    positionMs: Long,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val allowed = LocalSettings.current.findLyricsOnline
+    val context = LocalContext.current
+    val finder = remember(context) { (context.applicationContext as MimiApplication).lyricsFinder }
+    val scope = rememberCoroutineScope()
+
+    var found by remember(track?.id) { mutableStateOf<Lyrics?>(null) }
+    var searching by remember(track?.id) { mutableStateOf(false) }
+    var searched by remember(track?.id) { mutableStateOf(false) }
+
+    found?.let { lyrics ->
+        LyricsPanel(lyrics = lyrics, positionMs = positionMs, onSeek = onSeek, modifier = modifier)
+        return
+    }
+
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            LyricsMessage("No lyrics in this file.")
+
+            if (track != null) {
+                if (allowed) {
+                    Button(
+                        onClick = {
+                            searching = true
+                            scope.launch {
+                                val answer = finder.find(track)
+                                found = answer.takeIf { !it.isEmpty }
+                                searched = true
+                                searching = false
+                            }
+                        },
+                        enabled = !searching,
+                        modifier = Modifier.padding(top = 12.dp),
+                    ) {
+                        Text(if (searching) "Looking\u2026" else "Look for lyrics")
+                    }
+                    Text(
+                        text = if (searched && !searching) {
+                            "No lyrics found for this song."
+                        } else {
+                            "Searches a public lyrics database. This is the only thing in the app that uses the internet."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 10.dp, start = 28.dp, end = 28.dp),
+                    )
+                } else {
+                    Text(
+                        text = "Turn on \u201cLook for lyrics online\u201d in Settings to search for them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 10.dp, start = 28.dp, end = 28.dp),
+                    )
+                }
+            }
+        }
+    }
 }

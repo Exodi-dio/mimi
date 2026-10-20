@@ -189,7 +189,12 @@ fun NowPlayingScreen(
                     )
 
                     LyricsState.Loading -> LyricsMessage("Looking for lyrics\u2026")
-                    LyricsState.None -> LyricsMessage("No lyrics in this file.")
+                    LyricsState.None -> MissingLyrics(
+                        track = current,
+                        positionMs = state.positionMs,
+                        onSeek = onSeek,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
 
                 PlayerFace.ARTWORK -> Column(

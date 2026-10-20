@@ -86,6 +86,8 @@ data class Settings(
     val equalizerProfiles: List<EqualizerProfile> = emptyList(),
     /** Write Chinese and Korean words out in latin letters beneath the characters. */
     val romanizeLyrics: Boolean = false,
+    /** Search a lyrics database for a song that has none. Off, and asked for one song at a time. */
+    val findLyricsOnline: Boolean = false,
     /** Folders whose songs are left out of the library entirely. */
     val excludedFolders: List<String> = emptyList(),
 ) {
@@ -137,6 +139,7 @@ data class Settings(
         private const val EQUALIZER_GAINS = "setting.equalizer_gains"
         private const val EQUALIZER_PROFILES = "setting.equalizer_profiles"
         private const val ROMANIZE_LYRICS = "setting.romanize_lyrics"
+        private const val FIND_LYRICS_ONLINE = "setting.find_lyrics_online"
         private const val EXCLUDED_FOLDERS = "setting.excluded_folders"
 
         /**
@@ -179,6 +182,7 @@ data class Settings(
                 equalizerGains = decodeCurve(stored[EQUALIZER_GAINS]) ?: defaults.equalizerGains,
                 equalizerProfiles = decodeProfiles(stored[EQUALIZER_PROFILES]),
                 romanizeLyrics = stored.boolean(ROMANIZE_LYRICS, defaults.romanizeLyrics),
+                findLyricsOnline = stored.boolean(FIND_LYRICS_ONLINE, defaults.findLyricsOnline),
                 excludedFolders = decodeExcludedFolders(stored[EXCLUDED_FOLDERS])
             )
         }
@@ -204,6 +208,7 @@ data class Settings(
             MetaEntry(EQUALIZER_GAINS, encodeCurve(settings.equalizerGains)),
             MetaEntry(EQUALIZER_PROFILES, encodeProfiles(settings.equalizerProfiles)),
             MetaEntry(ROMANIZE_LYRICS, if (settings.romanizeLyrics) "1" else "0"),
+            MetaEntry(FIND_LYRICS_ONLINE, if (settings.findLyricsOnline) "1" else "0"),
             MetaEntry(EXCLUDED_FOLDERS, encodeExcludedFolders(settings.excludedFolders)),
         )
 

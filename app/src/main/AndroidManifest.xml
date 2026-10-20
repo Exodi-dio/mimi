@@ -3,6 +3,9 @@
 
     <!-- Reading the user's own audio collection. On API 33+ this is READ_MEDIA_AUDIO. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Only ever used to ask a lyrics database about a song that has none, and only when
+         the listener asks for it. Nothing else in this app touches the network. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
