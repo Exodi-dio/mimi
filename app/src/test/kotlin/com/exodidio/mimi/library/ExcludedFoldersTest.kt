@@ -47,7 +47,8 @@ class ExcludedFoldersTest {
 
     @Test
     fun `folders survive being stored and read back`() {
-        val folders = listOf("Music/Ringtones", "Download/Podcasts")
+        // Stored in one settled order, so the same set never looks like a change.
+        val folders = listOf("Download/Podcasts", "Music/Ringtones")
 
         assertEquals(folders, decodeExcludedFolders(encodeExcludedFolders(folders)))
     }
