@@ -15,6 +15,22 @@ sponsored by Apple Inc. "Apple Music" is a trademark of Apple Inc., referenced
 here only to describe design inspiration.
 
 --------------------------------------------------------------------------------
+Network
+--------------------------------------------------------------------------------
+
+MIMI works offline. One feature can use the network, and only one: looking up
+lyrics for a song whose file carries none. It is off until the listener turns it
+on in Settings, it is asked for one song at a time, and it is never done in the
+background.
+
+    lrclib.net    public lyrics database, no account and no key
+                  https://lrclib.net
+
+Nothing else in the app opens a connection, and no listening history, library
+contents or identifiers are sent with a lookup: a request carries only the song
+title, artist, album and length of the one song asked about.
+
+--------------------------------------------------------------------------------
 Runtime dependencies
 --------------------------------------------------------------------------------
 
