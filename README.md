@@ -16,16 +16,18 @@ and it is not meant to be.
 | --- | --- |
 | Library scan, cached so it never rescans on open | Theming / Apple Music visuals |
 | Eight library sections: songs, albums, artists, playlists, genres, composers, years, folders | Last.fm scrobbling |
-| Albums and artists told apart by their own tags, so a compilation does not credit every guest | Equaliser |
-| Playlists: make, rename, delete, add and remove songs | Crossfade and gapless |
-| Songs sorted by title, artist, album, length, date added or file name, ties broken predictably | Branding / app icon |
-| Loved songs, with a shelf of their own on the home screen | R8 shrinking |
-| Search across titles, artists and albums | |
+| Albums and artists told apart by their own tags, so a compilation does not credit every guest | Crossfade and gapless |
+| Playlists: make, rename, delete, add, remove and reorder songs | Branding / app icon |
+| Songs sorted by title, artist, album, length, date added or file name, ties broken predictably | R8 shrinking |
+| Albums sorted by name, album artist or song count; artists by name, albums or song count | |
+| Loved songs, with a shelf of their own on the home screen | |
+| Search across titles, artists and albums, with recent searches offered back | |
 | Play / pause / next / previous / seek, and a ten second step either way | |
-| Shuffle, repeat off/all/one, playback speed, sleep timer | |
+| Shuffle, repeat off/all/one, playback speed, sleep timer (including end of track) | |
 | Play or shuffle any album, artist, genre, year, folder or playlist | |
 | Up next queue: reorder, jump, remove, play next, add to queue, clear what is coming | |
 | Keep the queue as a playlist | |
+| Equaliser with a switch and seven presets, spread across however many bands the device has | |
 | Lyrics read out of the files themselves, timed or not | |
 | Background playback, notification, lock screen | |
 | Mini player with a progress rule, and a Now Playing screen with artwork, lyrics and queue faces | |
@@ -34,6 +36,8 @@ and it is not meant to be.
 | Listening history: play and skip counts, recently played, most played | |
 | Statistics: what the library holds and how much of it has been played | |
 | Everything known about a song on one screen, and sharing its file | |
+| Pick several songs at once and love them, queue them or put them in a playlist | |
+| Folders left out of the library without deleting anything | |
 | Settings in tabs: library, playback, appearance, about | |
 
 ## Stack
@@ -41,8 +45,8 @@ and it is not meant to be.
 - Kotlin, Jetpack Compose (Material 3)
 - **Media3 / ExoPlayer** for playback, behind a `PlaybackEngine` abstraction so
   an FFmpeg-backed engine can be added later without touching the app.
-- Room for the cached media library, and for the two things a rescan must not
-  touch: loved songs and playlists.
+- Room for the cached media library, and for the things a rescan must not touch:
+  loved songs, playlists and listening history.
 - AGP 9.3.1, Kotlin 2.4.10, Gradle 9.5.0, compileSdk 37.1, minSdk 31 (Android 12+)
 
 ## Building
