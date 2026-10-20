@@ -29,7 +29,7 @@ object LyricsJson {
         reader.skipSpace()
         return when (reader.peek()) {
             '[' -> reader.readArray()
-            '{' -> listOf(reader.readObject())
+            '{' -> listOfNotNull(reader.readObject())
             else -> emptyList()
         }
     }
@@ -62,7 +62,7 @@ object LyricsJson {
             while (true) {
                 skipSpace()
                 when (peek()) {
-                    '{' -> found += readObject()
+                    '{' -> readObject()?.let { found += it }
                     ']' -> break
                     null -> break
                     else -> skipValue()
@@ -80,15 +80,23 @@ object LyricsJson {
             return found
         }
 
-        fun readObject(): Map<String, String> {
+        /**
+         * One object, or null when the text ran out before it was closed.
+         *
+         * An unclosed object is reported as nothing rather than as a short answer: half a
+         * song's words are worse than none, and a connection that dropped mid answer
+         * should cost the songs it did not finish, not the ones it did.
+         */
+        fun readObject(): Map<String, String>? {
             val found = mutableMapOf<String, String>()
-            if (!take('{')) return found
+            if (!take('{')) return null
             skipSpace()
             if (peek() == '}') {
                 index++
                 return found
             }
 
+            var closed = false
             while (true) {
                 skipSpace()
                 val key = readString() ?: break
@@ -104,14 +112,16 @@ object LyricsJson {
                 skipSpace()
                 when (peek()) {
                     ',' -> index++
-                    '}' -> break
-                    null -> break
+                    '}' -> {
+                        closed = true
+                        break
+                    }
                     else -> break
                 }
             }
 
             if (peek() == '}') index++
-            return found
+            return if (closed || peek() == '}') found else null
         }
 
         private fun readString(): String? {
@@ -154,7 +164,10 @@ object LyricsJson {
             skipSpace()
             when (peek()) {
                 '"' -> readString()
-                '{' -> readObject()
+                '{' -> {
+                    readObject()
+                    Unit
+                }
                 '[' -> readArray()
                 else -> {
                     while (index < text.length && text[index] !in ",}]") index++
