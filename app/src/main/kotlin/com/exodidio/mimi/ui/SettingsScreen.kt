@@ -17,6 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.exodidio.mimi.library.AlbumSort
+import com.exodidio.mimi.library.ArtistSort
 import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.Settings
 import com.exodidio.mimi.library.SongSort
@@ -31,7 +33,7 @@ private enum class SettingsTab(val label: String) {
 }
 
 /** Which question, if any, is currently open in a dialog. */
-private enum class SettingsChoice { MIN_LENGTH, THEME, SONG_SORT }
+private enum class SettingsChoice { MIN_LENGTH, THEME, SONG_SORT, ALBUM_SORT, ARTIST_SORT }
 
 /**
  * Settings, split into pages.
@@ -82,6 +84,8 @@ fun SettingsScreen(
                     onRescan = onRescan,
                     onChooseLength = { openChoice = SettingsChoice.MIN_LENGTH },
                     onChooseSort = { openChoice = SettingsChoice.SONG_SORT },
+                    onChooseAlbumSort = { openChoice = SettingsChoice.ALBUM_SORT },
+                    onChooseArtistSort = { openChoice = SettingsChoice.ARTIST_SORT },
                 )
 
                 SettingsTab.PLAYBACK -> PlaybackPage(settings = settings, onChange = onChange)
@@ -132,6 +136,28 @@ fun SettingsScreen(
             onDismiss = { openChoice = null },
         )
 
+        SettingsChoice.ALBUM_SORT -> ChoiceDialog(
+            title = "Sort albums by",
+            options = AlbumSort.entries.map { it.label },
+            selectedIndex = settings.albumSort.ordinal,
+            onPick = { index ->
+                onChange { it.copy(albumSort = AlbumSort.entries[index]) }
+                openChoice = null
+            },
+            onDismiss = { openChoice = null },
+        )
+
+        SettingsChoice.ARTIST_SORT -> ChoiceDialog(
+            title = "Sort artists by",
+            options = ArtistSort.entries.map { it.label },
+            selectedIndex = settings.artistSort.ordinal,
+            onPick = { index ->
+                onChange { it.copy(artistSort = ArtistSort.entries[index]) }
+                openChoice = null
+            },
+            onDismiss = { openChoice = null },
+        )
+
         null -> Unit
     }
 }
@@ -145,6 +171,8 @@ private fun LibraryPage(
     onRescan: () -> Unit,
     onChooseLength: () -> Unit,
     onChooseSort: () -> Unit,
+    onChooseAlbumSort: () -> Unit,
+    onChooseArtistSort: () -> Unit,
 ) {
     SettingsSectionHeading("Finding music")
     SettingsToggleRow(
@@ -192,13 +220,25 @@ private fun LibraryPage(
     SettingsSectionHeading("Order")
     SettingsChoiceRow(
         title = "Sort songs by",
-        subtitle = "Orders the songs list. Every other list keeps its own order.",
+        subtitle = "Orders the songs list.",
         value = settings.songSort.label,
         onClick = onChooseSort,
     )
+    SettingsChoiceRow(
+        title = "Sort albums by",
+        subtitle = "Orders the albums grid.",
+        value = settings.albumSort.label,
+        onClick = onChooseAlbumSort,
+    )
+    SettingsChoiceRow(
+        title = "Sort artists by",
+        subtitle = "Orders the artists list.",
+        value = settings.artistSort.label,
+        onClick = onChooseArtistSort,
+    )
     SettingsToggleRow(
-        title = "Sort descending",
-        subtitle = "Newest first, longest first, Z to A.",
+        title = "Sort songs descending",
+        subtitle = "Newest first, longest first, Z to A. Albums and artists keep their own direction.",
         checked = settings.sortDescending,
         onCheckedChange = { value -> onChange { it.copy(sortDescending = value) } },
     )

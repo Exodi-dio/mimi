@@ -70,6 +70,10 @@ data class Settings(
     val songSort: SongSort = SongSort.TITLE,
     /** Whether that order runs backwards, which is "newest first" for dates. */
     val sortDescending: Boolean = false,
+    /** The field the albums grid is ordered by. */
+    val albumSort: AlbumSort = AlbumSort.NAME,
+    /** The field the artists list is ordered by. */
+    val artistSort: ArtistSort = ArtistSort.NAME,
 ) {
     companion object {
         /**
@@ -90,6 +94,8 @@ data class Settings(
         private const val THEME_MODE = "setting.theme_mode"
         private const val SONG_SORT = "setting.song_sort"
         private const val SORT_DESCENDING = "setting.sort_descending"
+        private const val ALBUM_SORT = "setting.album_sort"
+        private const val ARTIST_SORT = "setting.artist_sort"
 
         /**
          * Reads a set of stored rows into settings.
@@ -119,6 +125,12 @@ data class Settings(
                     ?.let { name -> SongSort.entries.firstOrNull { it.name == name } }
                     ?: defaults.songSort,
                 sortDescending = stored.boolean(SORT_DESCENDING, defaults.sortDescending),
+                albumSort = stored[ALBUM_SORT]
+                    ?.let { name -> AlbumSort.entries.firstOrNull { it.name == name } }
+                    ?: defaults.albumSort,
+                artistSort = stored[ARTIST_SORT]
+                    ?.let { name -> ArtistSort.entries.firstOrNull { it.name == name } }
+                    ?: defaults.artistSort,
             )
         }
 
@@ -135,6 +147,8 @@ data class Settings(
             MetaEntry(THEME_MODE, settings.themeMode.name),
             MetaEntry(SONG_SORT, settings.songSort.name),
             MetaEntry(SORT_DESCENDING, if (settings.sortDescending) "1" else "0"),
+            MetaEntry(ALBUM_SORT, settings.albumSort.name),
+            MetaEntry(ARTIST_SORT, settings.artistSort.name),
         )
 
         private fun Map<String, String>.boolean(key: String, default: Boolean): Boolean =

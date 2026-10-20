@@ -50,13 +50,17 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList(),
     )
 
-    val albums: StateFlow<List<AlbumSummary>> = library.albums.stateIn(
+    val albums: StateFlow<List<AlbumSummary>> = combine(library.albums, settings.settings) { all, chosen ->
+        all.sortedWith(chosen.albumSort.comparator())
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
     )
 
-    val artists: StateFlow<List<ArtistSummary>> = library.artists.stateIn(
+    val artists: StateFlow<List<ArtistSummary>> = combine(library.artists, settings.settings) { all, chosen ->
+        all.sortedWith(chosen.artistSort.comparator())
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
