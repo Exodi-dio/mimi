@@ -242,6 +242,10 @@ interface MetaDao {
     /** The same rows, read once rather than watched. */
     @Query("SELECT * FROM meta WHERE meta_key LIKE :prefix || '%'")
     suspend fun getAllWithPrefix(prefix: String): List<MetaEntry>
+
+    /** Removes every row under a prefix, so a rewritten list leaves nothing behind. */
+    @Query("DELETE FROM meta WHERE meta_key LIKE :prefix || '%'")
+    suspend fun deleteWithPrefix(prefix: String)
 }
 
 /**

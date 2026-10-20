@@ -160,6 +160,28 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         _query.value = text
     }
 
+    /** Searches that are worth offering again. */
+    val recentSearches: StateFlow<List<String>> = library.recentSearches.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
+
+    /**
+     * Remembers what is in the search box.
+     *
+     * Called when a search bears fruit rather than on every keystroke: what is worth
+     * offering back is what somebody went on to use, not the false starts on the way.
+     */
+    fun rememberSearch() {
+        val text = _query.value
+        viewModelScope.launch { library.rememberSearch(text) }
+    }
+
+    fun forgetSearches() {
+        viewModelScope.launch { library.forgetSearches() }
+    }
+
     /**
      * Loved songs as a set rather than a list, because every track row asks whether it is
      * loved and a list would turn that into a scan per row.

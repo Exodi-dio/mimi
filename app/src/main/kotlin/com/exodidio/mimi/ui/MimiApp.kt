@@ -88,6 +88,7 @@ private fun MimiAppContent() {
     val scanning by libraryViewModel.scanning.collectAsStateWithLifecycle()
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
+    val recentSearches by libraryViewModel.recentSearches.collectAsStateWithLifecycle()
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
     val sleepRemaining by playerViewModel.sleepRemaining.collectAsStateWithLifecycle()
     val sleepAtEndOfTrack by playerViewModel.sleepAtEndOfTrack.collectAsStateWithLifecycle()
@@ -270,7 +271,16 @@ private fun MimiAppContent() {
                                 onPlayNext = playerViewModel::playNext,
                                 onAddToQueue = playerViewModel::addToQueue,
                                 onAddToPlaylist = { addTarget = it },
-                                onTrackClick = { index -> playerViewModel.play(searchResults, index) },
+                                onTrackClick = { index ->
+                                    // A result being worth playing is the sign the search
+                                    // was worth making, so that is when it is remembered.
+                                    libraryViewModel.rememberSearch()
+                                    playerViewModel.play(searchResults, index)
+                                },
+                                recentSearches = recentSearches,
+                                onPickRecent = libraryViewModel::onQueryChange,
+                                onForgetRecent = libraryViewModel::forgetSearches,
+                                onSubmit = libraryViewModel::rememberSearch,
                             )
 
                             Screen.Settings -> SettingsScreen(

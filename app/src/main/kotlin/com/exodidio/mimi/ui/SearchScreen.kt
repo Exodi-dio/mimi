@@ -1,12 +1,18 @@
 package com.exodidio.mimi.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -14,12 +20,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.X
@@ -48,6 +57,10 @@ fun SearchScreen(
     onPlayNext: (Track) -> Unit = {},
     onAddToQueue: (Track) -> Unit = {},
     onAddToPlaylist: (Track) -> Unit = {},
+    recentSearches: List<String> = emptyList(),
+    onPickRecent: (String) -> Unit = {},
+    onForgetRecent: () -> Unit = {},
+    onSubmit: () -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(title = "Search")
@@ -69,9 +82,16 @@ fun SearchScreen(
                 }
             },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
         )
 
         when {
+            query.isBlank() && recentSearches.isNotEmpty() -> RecentSearches(
+                searches = recentSearches,
+                onPick = onPickRecent,
+                onForget = onForgetRecent,
+            )
+
             query.isBlank() -> SearchHint("Find a song, an artist or an album.")
             results.isEmpty() -> SearchHint("Nothing matches \u201c$query\u201d.")
             else -> LazyColumn(
@@ -92,6 +112,55 @@ fun SearchScreen(
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentSearches(
+    searches: List<String>,
+    onPick: (String) -> Unit,
+    onForget: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Recent searches",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onForget) {
+                Text("Clear")
+            }
+        }
+
+        searches.forEach { text ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPick(text) }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Lucide.Clock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

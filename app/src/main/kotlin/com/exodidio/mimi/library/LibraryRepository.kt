@@ -40,6 +40,36 @@ class LibraryRepository(
     /** Titles, artists and albums containing [query]. Blank matches nothing, not everything. */
     fun search(query: String): Flow<List<Track>> = trackDao.search(query)
 
+    /**
+     * What has been searched for lately, most recent first.
+     *
+     * Watched like anything else, so a search remembered while the box is open shows up in
+     * the list behind it without the screen having to ask again.
+     */
+    val recentSearches: Flow<List<String>> = metaDao
+        .observeWithPrefix(RECENT_SEARCH_PREFIX)
+        .map(::recentSearchesFrom)
+
+    /**
+     * Puts [text] at the front of the recent searches.
+     *
+     * The whole list is rewritten each time: it is a handful of rows, and clearing first
+     * means the list can get shorter without leaving the old tail behind to reappear later.
+     */
+    suspend fun rememberSearch(text: String) = database.withTransaction {
+        val current = recentSearchesFrom(metaDao.getAllWithPrefix(RECENT_SEARCH_PREFIX))
+        val next = current.remembering(text)
+        if (next == current) return@withTransaction
+
+        metaDao.deleteWithPrefix(RECENT_SEARCH_PREFIX)
+        metaDao.putAll(recentSearchRows(next))
+    }
+
+    /** Forgets everything that has been searched for. */
+    suspend fun forgetSearches() {
+        metaDao.deleteWithPrefix(RECENT_SEARCH_PREFIX)
+    }
+
     /** The newest arrivals, for a shelf rather than a screen of its own. */
     fun recentlyAdded(limit: Int): Flow<List<Track>> = trackDao.observeRecentlyAdded(limit)
 
