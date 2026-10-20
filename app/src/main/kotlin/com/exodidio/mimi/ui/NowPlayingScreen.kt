@@ -82,8 +82,10 @@ fun NowPlayingScreen(
     onSaveQueue: () -> Unit,
     onClearUpcoming: () -> Unit,
     sleepRemaining: Long?,
+    sleepAtEndOfTrack: Boolean,
     onStartSleepTimer: (Long) -> Unit,
     onCancelSleepTimer: () -> Unit,
+    onStopAfterSong: () -> Unit,
     onSetSpeed: (Float) -> Unit,
     onGoToAlbum: () -> Unit,
     onGoToArtist: () -> Unit,
@@ -306,16 +308,22 @@ fun NowPlayingScreen(
     when (dialog) {
         PlayerDialog.SLEEP -> ChoiceDialog(
             title = "Sleep timer",
-            options = SleepChoices.map { it.second },
-            selectedIndex = if (sleepRemaining == null) {
-                SleepChoices.indexOfFirst { it.first == 0L }
-            } else {
-                -1
+            options = SleepChoices.map { it.label },
+            selectedIndex = when {
+                sleepAtEndOfTrack -> SleepChoices.indexOfFirst { it.durationMs == null }
+                sleepRemaining == null -> SleepChoices.indexOfFirst { it.durationMs == 0L }
+                else -> -1
             },
             onPick = { index ->
                 dialog = null
-                val duration = SleepChoices.getOrNull(index)?.first ?: 0L
-                if (duration <= 0L) onCancelSleepTimer() else onStartSleepTimer(duration)
+                SleepChoices.getOrNull(index)?.let { choice ->
+                    when (choice.durationMs) {
+                        // Null is "wait for this song", zero is "stop waiting at all".
+                        null -> onStopAfterSong()
+                        0L -> onCancelSleepTimer()
+                        else -> onStartSleepTimer(choice.durationMs)
+                    }
+                }
             },
             onDismiss = { dialog = null },
         )
@@ -341,15 +349,25 @@ private enum class PlayerDialog { SLEEP, SPEED }
 /** How far the step buttons move, in milliseconds. */
 private const val STEP_MS = 10_000L
 
-/** Every length the sleep timer offers, paired with its label. Zero means off. */
+/**
+ * One entry in the sleep timer's menu.
+ *
+ * [durationMs] is null for "end of track", which is a wait rather than a length, and zero
+ * for "off". Keeping both as absent lengths in the same list means the menu cannot get out
+ * of step with what the timer can do.
+ */
+private data class SleepChoice(val durationMs: Long?, val label: String)
+
+/** Every way the sleep timer can be set. */
 private val SleepChoices = listOf(
-    0L to "Off",
-    5 * 60_000L to "5 minutes",
-    10 * 60_000L to "10 minutes",
-    15 * 60_000L to "15 minutes",
-    30 * 60_000L to "30 minutes",
-    45 * 60_000L to "45 minutes",
-    60 * 60_000L to "1 hour",
+    SleepChoice(0L, "Off"),
+    SleepChoice(null, "End of track"),
+    SleepChoice(5 * 60_000L, "5 minutes"),
+    SleepChoice(10 * 60_000L, "10 minutes"),
+    SleepChoice(15 * 60_000L, "15 minutes"),
+    SleepChoice(30 * 60_000L, "30 minutes"),
+    SleepChoice(45 * 60_000L, "45 minutes"),
+    SleepChoice(60 * 60_000L, "1 hour"),
 )
 
 /** The rates worth offering: half speed to well past double. */

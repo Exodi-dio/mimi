@@ -131,6 +131,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun cancelSleepTimer() = sleepTimer.cancel()
 
+    /** True while the timer is waiting for the current song to finish. */
+    val sleepAtEndOfTrack: StateFlow<Boolean> = sleepTimer.stopAfterSong
+
+    fun stopAfterSong() = sleepTimer.stopAfterSong()
+
     override fun onCleared() {
         engine.release()
     }

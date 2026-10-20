@@ -3,6 +3,7 @@ package com.exodidio.mimi.playback
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -65,9 +66,30 @@ class MimiPlaybackService : MediaSessionService() {
 
         // The sleep timer counts somewhere that outlives the screen; stopping is something
         // only the player can carry out, so it is handed the job once the player exists.
-        (application as MimiApplication).sleepTimer.onElapsed = {
+        val sleepTimer = (application as MimiApplication).sleepTimer
+        sleepTimer.onElapsed = {
             if (player.isPlaying) player.pause()
         }
+
+        // Fading is the player's own volume rather than the phone's, so the ramp cannot
+        // leave the device quiet for everything else afterwards.
+        sleepTimer.onFade = { level -> player.volume = level }
+
+        // "End of track" is decided here because the player is the only thing that knows a
+        // song has finished. The next song starts as the change is reported, so it is
+        // paused at once rather than allowed to play on for a moment.
+        player.addListener(
+            object : Player.Listener {
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    // Only a song that ran to its end counts. Skipping by hand moves to the
+                    // next song too, and stopping there would make the timer feel like a
+                    // fault rather than a promise.
+                    val ended = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
+                        reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
+                    if (ended && sleepTimer.consumeStopAfterSong()) player.pause()
+                }
+            },
+        )
 
         // These two settings steer the player itself, and the player lives here rather than
         // in the app's ViewModel, so they are applied where it is. Collecting rather than
@@ -78,6 +100,7 @@ class MimiPlaybackService : MediaSessionService() {
                 current = settings
                 player.setHandleAudioBecomingNoisy(settings.pauseOnDisconnect)
                 player.setSkipSilenceEnabled(settings.skipSilence)
+                sleepTimer.fade = settings.fadeOutSleepTimer
                 equalizer.apply(
                     sessionId = player.audioSessionId,
                     enabled = settings.equalizerEnabled,

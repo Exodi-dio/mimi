@@ -90,6 +90,7 @@ private fun MimiAppContent() {
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
     val sleepRemaining by playerViewModel.sleepRemaining.collectAsStateWithLifecycle()
+    val sleepAtEndOfTrack by playerViewModel.sleepAtEndOfTrack.collectAsStateWithLifecycle()
     val settings = LocalSettings.current
     val context = LocalContext.current
 
@@ -192,8 +193,10 @@ private fun MimiAppContent() {
                     onSaveQueue = { savingQueue = true },
                     onClearUpcoming = playerViewModel::clearUpcoming,
                     sleepRemaining = sleepRemaining,
+                    sleepAtEndOfTrack = sleepAtEndOfTrack,
                     onStartSleepTimer = playerViewModel::startSleepTimer,
                     onCancelSleepTimer = playerViewModel::cancelSleepTimer,
+                    onStopAfterSong = playerViewModel::stopAfterSong,
                     onSetSpeed = playerViewModel::setSpeed,
                     // Found by id at the moment it is asked for rather than tracked
                     // alongside the player, which reports a new position twice a second.

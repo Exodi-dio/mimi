@@ -285,6 +285,12 @@ private fun PlaybackPage(
         checked = settings.skipSilence,
         onCheckedChange = { value -> onChange { it.copy(skipSilence = value) } },
     )
+    SettingsToggleRow(
+        title = "Fade out with the sleep timer",
+        subtitle = "Turns the volume down over the last ten seconds instead of cutting off.",
+        checked = settings.fadeOutSleepTimer,
+        onCheckedChange = { value -> onChange { it.copy(fadeOutSleepTimer = value) } },
+    )
 
     HorizontalDivider(
         modifier = Modifier.padding(top = 12.dp),
