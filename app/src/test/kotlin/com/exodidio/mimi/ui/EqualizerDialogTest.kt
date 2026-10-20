@@ -12,7 +12,7 @@ class EqualizerDialogTest {
         val moved = curve.withGain(3, -5f)
 
         assertEquals(-5f, moved[3], 0.001f)
-        assertEquals(9, moved.size)
+        assertEquals(10, moved.size)
         assertEquals(
             curve.filterIndexed { index, _ -> index != 3 },
             moved.filterIndexed { index, _ -> index != 3 },
