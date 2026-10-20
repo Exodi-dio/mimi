@@ -40,13 +40,15 @@ class RecentSearchesTest {
 
     @Test
     fun `only so many are kept, and the oldest is the one that goes`() {
-        val full = (1..RECENT_SEARCH_LIMIT).map { "search $it" }
+        // Built newest first, the way the list is held: "recent 1" is the newest.
+        val full = (1..RECENT_SEARCH_LIMIT).map { "recent $it" }
 
         val after = full.remembering("newest")
 
         assertEquals(RECENT_SEARCH_LIMIT, after.size)
         assertEquals("newest", after.first())
-        assertTrue("the oldest should have dropped off", "search 1" !in after)
+        assertTrue("the newest of the old ones should still be there", "recent 1" in after)
+        assertTrue("the oldest should have dropped off", "recent $RECENT_SEARCH_LIMIT" !in after)
     }
 
     @Test
