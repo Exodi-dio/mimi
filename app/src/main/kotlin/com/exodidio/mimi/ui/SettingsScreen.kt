@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.library.AlbumSort
 import com.exodidio.mimi.library.ArtistSort
+import com.exodidio.mimi.library.FolderSummary
 import com.exodidio.mimi.library.EqualizerPreset
 import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.Settings
@@ -55,6 +56,8 @@ fun SettingsScreen(
     scanning: Boolean,
     onRescan: () -> Unit,
     onOpenStatistics: () -> Unit,
+    folders: List<FolderSummary>,
+    onToggleFolder: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(SettingsTab.LIBRARY) }
@@ -87,6 +90,7 @@ fun SettingsScreen(
                     onChooseSort = { openChoice = SettingsChoice.SONG_SORT },
                     onChooseAlbumSort = { openChoice = SettingsChoice.ALBUM_SORT },
                     onChooseArtistSort = { openChoice = SettingsChoice.ARTIST_SORT },
+                    onChooseFolders = { openChoice = SettingsChoice.EXCLUDED_FOLDERS },
                 )
 
                 SettingsTab.PLAYBACK -> PlaybackPage(
@@ -174,6 +178,13 @@ fun SettingsScreen(
             onDismiss = { openChoice = null },
         )
 
+        SettingsChoice.EXCLUDED_FOLDERS -> ExcludedFoldersDialog(
+            folders = folders,
+            excluded = settings.excludedFolders,
+            onToggle = onToggleFolder,
+            onDismiss = { openChoice = null },
+        )
+
         null -> Unit
     }
 }
@@ -189,6 +200,7 @@ private fun LibraryPage(
     onChooseSort: () -> Unit,
     onChooseAlbumSort: () -> Unit,
     onChooseArtistSort: () -> Unit,
+    onChooseFolders: () -> Unit,
 ) {
     SettingsSectionHeading("Finding music")
     SettingsToggleRow(
@@ -257,6 +269,17 @@ private fun LibraryPage(
         subtitle = "Newest first, longest first, Z to A. Albums and artists keep their own direction.",
         checked = settings.sortDescending,
         onCheckedChange = { value -> onChange { it.copy(sortDescending = value) } },
+    )
+
+    SettingsSectionHeading("Folders")
+    SettingsActionRow(
+        title = "Folders to leave out",
+        subtitle = when (settings.excludedFolders.size) {
+            0 -> "Every folder on the device is read."
+            1 -> "One folder is left out of the library."
+            else -> "${settings.excludedFolders.size} folders are left out of the library."
+        },
+        onClick = onChooseFolders,
     )
 }
 

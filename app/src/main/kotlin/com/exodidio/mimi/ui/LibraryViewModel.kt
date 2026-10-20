@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -34,6 +36,20 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val library = (application as MimiApplication).library
 
     private val settings = (application as MimiApplication).settings
+
+    init {
+        // Which folders are left out is the one setting the scanner itself has to know
+        // about, so changing it rebuilds the library rather than waiting for the next
+        // scan to notice. The first emission is what is already there, and is dropped so
+        // opening the app does not scan twice.
+        viewModelScope.launch {
+            settings.settings
+                .map { it.excludedFolders }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { refresh(force = true) }
+        }
+    }
 
     /**
      * Comes straight from the Room cache, so the list paints instantly on launch.

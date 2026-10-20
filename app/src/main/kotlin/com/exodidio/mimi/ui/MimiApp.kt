@@ -89,6 +89,7 @@ private fun MimiAppContent() {
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
     val recentSearches by libraryViewModel.recentSearches.collectAsStateWithLifecycle()
+    val folders by libraryViewModel.folders.collectAsStateWithLifecycle()
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
     val sleepRemaining by playerViewModel.sleepRemaining.collectAsStateWithLifecycle()
     val sleepAtEndOfTrack by playerViewModel.sleepAtEndOfTrack.collectAsStateWithLifecycle()
@@ -290,6 +291,20 @@ private fun MimiAppContent() {
                                 scanning = scanning,
                                 onRescan = { libraryViewModel.refresh(force = true) },
                                 onOpenStatistics = { navigator.push(Screen.Statistics) },
+                                folders = folders,
+                                onToggleFolder = { folder ->
+                                    // An excluded folder is a statement about the library,
+                                    // so it is written as soon as it is made.
+                                    settingsViewModel.change { chosen ->
+                                        chosen.copy(
+                                            excludedFolders = if (folder in chosen.excludedFolders) {
+                                                chosen.excludedFolders - folder
+                                            } else {
+                                                chosen.excludedFolders + folder
+                                            },
+                                        )
+                                    }
+                                },
                             )
 
                             Screen.Statistics -> StatisticsScreen(

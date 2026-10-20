@@ -82,10 +82,25 @@ object MediaStoreScanner {
         val fileName: String?,
     )
 
-    suspend fun scan(context: Context, minDurationMs: Long = 0L): List<Track> =
+    /**
+     * Reads the device and returns what belongs in the library.
+     *
+     * Folders the listener has excluded are dropped here rather than later, so an excluded
+     * folder costs a comparison per row instead of a whole song built and then thrown away.
+     */
+    suspend fun scan(
+        context: Context,
+        minDurationMs: Long = 0L,
+        excludedFolders: Collection<String> = emptyList(),
+    ): List<Track> =
         withContext(Dispatchers.IO) {
-            val rows = runCatching { queryRows(context, extendedProjection, minDurationMs) }
+            val found = runCatching { queryRows(context, extendedProjection, minDurationMs) }
                 .getOrElse { queryRows(context, baseProjection, minDurationMs) }
+            val rows = if (excludedFolders.isEmpty()) {
+                found
+            } else {
+                found.filterNot { isExcludedFolder(it.folder, excludedFolders) }
+            }
 
         if (rows.isEmpty()) return@withContext emptyList()
 

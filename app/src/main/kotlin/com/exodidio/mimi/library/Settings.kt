@@ -80,6 +80,8 @@ data class Settings(
     val equalizerEnabled: Boolean = false,
     /** The shape it applies when it is on. */
     val equalizerPreset: EqualizerPreset = EqualizerPreset.FLAT,
+    /** Folders whose songs are left out of the library entirely. */
+    val excludedFolders: List<String> = emptyList(),
 ) {
     companion object {
         /**
@@ -105,6 +107,7 @@ data class Settings(
         private const val ARTIST_SORT = "setting.artist_sort"
         private const val EQUALIZER_ENABLED = "setting.equalizer_enabled"
         private const val EQUALIZER_PRESET = "setting.equalizer_preset"
+        private const val EXCLUDED_FOLDERS = "setting.excluded_folders"
 
         /**
          * Reads a set of stored rows into settings.
@@ -142,7 +145,8 @@ data class Settings(
                     ?.let { name -> ArtistSort.entries.firstOrNull { it.name == name } }
                     ?: defaults.artistSort,
                 equalizerEnabled = stored.boolean(EQUALIZER_ENABLED, defaults.equalizerEnabled),
-                equalizerPreset = EqualizerPreset.of(stored[EQUALIZER_PRESET])
+                equalizerPreset = EqualizerPreset.of(stored[EQUALIZER_PRESET]),
+                excludedFolders = decodeExcludedFolders(stored[EXCLUDED_FOLDERS])
             )
         }
 
@@ -164,6 +168,7 @@ data class Settings(
             MetaEntry(ARTIST_SORT, settings.artistSort.name),
             MetaEntry(EQUALIZER_ENABLED, if (settings.equalizerEnabled) "1" else "0"),
             MetaEntry(EQUALIZER_PRESET, settings.equalizerPreset.name),
+            MetaEntry(EXCLUDED_FOLDERS, encodeExcludedFolders(settings.excludedFolders)),
         )
 
         private fun Map<String, String>.boolean(key: String, default: Boolean): Boolean =
