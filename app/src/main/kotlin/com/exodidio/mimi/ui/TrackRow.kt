@@ -1,6 +1,8 @@
 package com.exodidio.mimi.ui
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,8 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Ellipsis
 import com.composables.icons.lucide.Heart
 import com.composables.icons.lucide.Info
@@ -46,6 +50,7 @@ import com.exodidio.mimi.library.Track
  * The overflow is always offered, because a song's details are always worth asking for —
  * the actions that are not available simply are not listed.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackRow(
     track: Track,
@@ -63,16 +68,43 @@ fun TrackRow(
     // itself rather than on an album they do not have.
     val artKey = track.albumId.takeIf { it != 0L }?.let { "album:$it" }
     val actions = LocalTrackActions.current
+    val selected = actions.isSelected(track.id)
     var menuOpen by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                // A long press picks the song out, and once anything is picked a tap picks
+                // rather than plays. Both are decided by the row itself, so every list in
+                // the app gained picking at once.
+                .combinedClickable(
+                    onClick = {
+                        if (actions.isSelecting()) actions.onSelect(track) else onClick()
+                    },
+                    onLongClick = { actions.onSelect(track) },
+                )
+                .background(
+                    if (selected) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                    } else {
+                        Color.Transparent
+                    }
+                )
                 .padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (selected) {
+                // Picking is a mode, so it has to be visible on the row itself rather than
+                // only in the bar above the list.
+                Icon(
+                    imageVector = Lucide.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            }
             if (LocalSettings.current.showArtwork) {
                 Artwork(
                     bitmap = rememberAlbumArt(

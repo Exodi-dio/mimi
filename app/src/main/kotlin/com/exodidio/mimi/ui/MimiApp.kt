@@ -106,10 +106,18 @@ private fun MimiAppContent() {
     var deleteTarget by remember { mutableStateOf<PlaylistSummary?>(null) }
     // The queue can be kept, but only once the listener has named it.
     var savingQueue by remember { mutableStateOf(false) }
+    // Songs picked out by long-pressing a row. Held as ids rather than songs so a rescan
+    // or a re-sort under the list cannot leave the selection pointing at stale rows.
+    var picked by remember { mutableStateOf(emptySet<Long>()) }
+    var addManyToPlaylist by remember { mutableStateOf<List<Track>?>(null) }
 
     val hasTrack = playback.current != null
     val screen = navigator.current
     val playingMediaId = playback.current?.mediaId
+
+    // Worked out each time it is read, so an action applies to what the lists are showing
+    // now rather than to what they showed when the first row was picked.
+    val pickedTracks = tracks.pickedBy(picked) { it.id }
 
     /**
      * Leaves the player and lands on a screen inside the library.
@@ -153,6 +161,9 @@ private fun MimiAppContent() {
         CompositionLocalProvider(
             LocalTrackActions provides TrackActions(
                 onShowInfo = { navigator.push(Screen.TrackInfo(it.id)) },
+                isSelected = { it in picked },
+                isSelecting = { picked.isNotEmpty() },
+                onSelect = { picked = picked.toggling(it.id) },
             ),
         ) {
         AudioPermissionGate {
@@ -428,7 +439,30 @@ private fun MimiAppContent() {
                         }
                     }
 
-                    if (hasTrack) {
+                    if (picked.isNotEmpty()) {
+                        SelectionBar(
+                            count = picked.size,
+                            onClose = { picked = emptySet() },
+                            onLove = {
+                                // One button for both directions: if everything picked is
+                                // already loved it un-loves, and otherwise it loves what is
+                                // not, so a second press undoes the first.
+                                val allLoved = pickedTracks.isNotEmpty() &&
+                                    pickedTracks.all { it.id in favoriteIds }
+                                pickedTracks.forEach { track ->
+                                    if ((track.id in favoriteIds) == allLoved) {
+                                        libraryViewModel.toggleLoved(track.id)
+                                    }
+                                }
+                                picked = emptySet()
+                            },
+                            onAddToPlaylist = { addManyToPlaylist = pickedTracks },
+                            onAddToQueue = {
+                                pickedTracks.forEach(playerViewModel::addToQueue)
+                                picked = emptySet()
+                            },
+                        )
+                    } else if (hasTrack) {
                         MiniPlayer(
                             state = playback,
                             onExpand = { showNowPlaying = true },
@@ -464,6 +498,25 @@ private fun MimiAppContent() {
                         addTarget = null
                     },
                     onDismiss = { addTarget = null },
+                )
+            }
+
+            addManyToPlaylist?.let { chosen ->
+                AddToPlaylistDialog(
+                    playlists = playlists,
+                    onPick = { playlist ->
+                        chosen.forEach { libraryViewModel.addToPlaylist(playlist.id, it.id) }
+                        addManyToPlaylist = null
+                        picked = emptySet()
+                    },
+                    onCreate = { name ->
+                        libraryViewModel.createPlaylist(name) { playlistId ->
+                            chosen.forEach { libraryViewModel.addToPlaylist(playlistId, it.id) }
+                        }
+                        addManyToPlaylist = null
+                        picked = emptySet()
+                    },
+                    onDismiss = { addManyToPlaylist = null },
                 )
             }
 
