@@ -174,20 +174,9 @@ fun SettingsScreen(
             onDismiss = { openChoice = null },
         )
 
-        SettingsChoice.EQUALIZER_PRESET -> ChoiceDialog(
-            title = "Shape",
-            options = settings.equalizerChoices.map { it.name },
-            selectedIndex = settings.equalizerChoices.indexOfFirst { it.key == settings.equalizerPresetKey },
-            onPick = { index ->
-                settings.equalizerChoices.getOrNull(index)?.let { chosen ->
-                    // Picking a curve brings its gains with it; the key and the gains are
-                    // stored apart so a dragged curve can still say which one it came from.
-                    onChange {
-                        it.copy(equalizerPresetKey = chosen.key, equalizerGains = chosen.gainsDb)
-                    }
-                }
-                openChoice = null
-            },
+        SettingsChoice.EQUALIZER_PRESET -> EqualizerDialog(
+            settings = settings,
+            onChange = onChange,
             onDismiss = { openChoice = null },
         )
 
@@ -345,21 +334,19 @@ private fun PlaybackPage(
         checked = settings.equalizerEnabled,
         onCheckedChange = { value -> onChange { it.copy(equalizerEnabled = value) } },
     )
-    // Only worth offering a shape once there is something shaping, and a row that does
-    // nothing is worse than a row that is not there.
-    if (settings.equalizerEnabled) {
-        SettingsChoiceRow(
-            title = "Shape",
-            subtitle = "How the equaliser colours the sound.",
-            value = settings.equalizerChoices
-                .firstOrNull { it.key == settings.equalizerPresetKey }
-                ?.let { chosen ->
-                    if (chosen.gainsDb == settings.equalizerGains) chosen.name else "${chosen.name} (edited)"
-                }
-                ?: "Flat",
-            onClick = onChooseEqualizerPreset,
-        )
-    }
+    // Always offered, even when the equaliser is off: the panel is where it is switched
+    // on, and a row that disappears is a row you have to find twice.
+    SettingsChoiceRow(
+        title = "Curves and bands",
+        subtitle = "Pick a shape and drag the ten bands.",
+        value = settings.equalizerChoices
+            .firstOrNull { it.key == settings.equalizerPresetKey }
+            ?.let { chosen ->
+                if (chosen.gainsDb == settings.equalizerGains) chosen.name else "${chosen.name} (edited)"
+            }
+            ?: "Flat",
+        onClick = onChooseEqualizerPreset,
+    )
 }
 
 @Composable
