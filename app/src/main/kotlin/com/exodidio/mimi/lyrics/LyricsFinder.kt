@@ -1,56 +1,46 @@
 package com.exodidio.mimi.lyrics
 
 import android.util.LruCache
-import com.exodidio.mimi.library.Track
 
 /**
  * Looks for lyrics the device does not have.
  *
  * The one place in the app that reaches the network, and only ever when a listener asks:
  * songs that already carry lyrics in their tags, or have a `.lrc` beside them, never come
- * near this.
+ * here at all.
  *
- * Two questions are asked in order. The exact match first, because a hit there is the song
- * that was asked for rather than one with a similar name. Then the loose search, because a
- * tag that says "1979" where the database says "1979 - Remastered" is common enough that
- * insisting on an exact match would find almost nothing.
- *
- * A timed version is preferred over an untimed one. Words that follow the music are worth
- * more than words that do not, and the database frequently has both.
+ * What it learns is remembered for the life of the app, including the empty answers, so a
+ * song the database does not have is not asked about every time it is played. The answer
+ * is dropped when the activity goes, which is the right lifetime for something that can be
+ * fetched again.
  */
 class LyricsFinder(private val client: LrclibClient = LrclibClient()) {
 
     private val cache = LruCache<String, Lyrics>(CACHE_ENTRIES)
 
-    /**
-     * The lyrics for [track], or [Lyrics.EMPTY] when the database has none.
-     *
-     * Cached by song, including the empty answer: a song the database does not have should
-     * not be asked about again every time its screen is opened.
-     */
-    suspend fun find(track: Track): Lyrics {
-        val key = track.id.toString()
-        cache.get(key)?.let { return it }
+    /** The words for this song, or [Lyrics.EMPTY] when there are none to be had. */
+    suspend fun find(question: LyricsQuery): Lyrics {
+        cache.get(question.key)?.let { return it }
 
-        val found = runCatching { lookup(track) }.getOrDefault(Lyrics.EMPTY)
-        cache.put(key, found)
-        return found
+        val lyrics = runCatching { lookup(question) }.getOrDefault(Lyrics.EMPTY)
+        cache.put(question.key, lyrics)
+        return lyrics
     }
 
-    /** Forgets what was found, so the next ask goes out again. */
+    /** Forgets every answer, so the next question is asked again. */
     fun forget() = cache.evictAll()
 
-    private suspend fun lookup(track: Track): Lyrics {
-        val candidates = client.lookup(track).ifEmpty { client.search(track) }
-        if (candidates.isEmpty()) return Lyrics.EMPTY
+    private suspend fun lookup(question: LyricsQuery): Lyrics {
+        val answers = client.lookup(question).ifEmpty { client.search(question) }
+        if (answers.isEmpty()) return Lyrics.EMPTY
 
-        val timed = candidates.firstOrNull { !it["syncedLyrics"].isNullOrBlank() }
-        val plain = candidates.firstOrNull { !it["plainLyrics"].isNullOrBlank() }
-        val raw = timed?.get("syncedLyrics")?.takeIf { it.isNotBlank() }
-            ?: plain?.get("plainLyrics")?.takeIf { it.isNotBlank() }
-            ?: return Lyrics.EMPTY
+        // Words that follow the music are worth more than words that do not, so a timed
+        // answer is preferred whenever one of these songs has it.
+        val timed = answers.firstNotNullOfOrNull { it["syncedLyrics"]?.takeIf(String::isNotBlank) }
+        val plain = answers.firstNotNullOfOrNull { it["plainLyrics"]?.takeIf(String::isNotBlank) }
+        val raw = timed ?: plain ?: return Lyrics.EMPTY
 
-        return LyricsParser.parse(raw)
+        return LyricsParser.parse(raw).takeIf { !it.isEmpty } ?: Lyrics.EMPTY
     }
 
     private companion object {

@@ -51,6 +51,7 @@ import com.composables.icons.lucide.Shuffle
 import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
 import com.composables.icons.lucide.Timer
+import com.exodidio.mimi.lyrics.LyricsQuery
 import com.exodidio.mimi.playback.PlaybackState
 import com.exodidio.mimi.playback.RepeatMode
 import kotlin.math.abs
@@ -190,7 +191,17 @@ fun NowPlayingScreen(
 
                     LyricsState.Loading -> LyricsMessage("Looking for lyrics\u2026")
                     LyricsState.None -> MissingLyrics(
-                        track = current,
+                        // The player knows what is playing as a queue item, which is all a
+                        // lyrics database needs: a name, who it is by, and how long it runs.
+                        question = current?.let { playing ->
+                            LyricsQuery(
+                                key = playing.mediaId,
+                                title = playing.title,
+                                artist = playing.artist,
+                                album = playing.album,
+                                durationMs = state.durationMs,
+                            )
+                        },
                         positionMs = state.positionMs,
                         onSeek = onSeek,
                         modifier = Modifier.fillMaxSize(),

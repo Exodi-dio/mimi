@@ -34,7 +34,7 @@ import com.exodidio.mimi.lyrics.AndroidRomanizationEngine
 import com.exodidio.mimi.lyrics.Lyrics
 import com.exodidio.mimi.lyrics.RomanizeLyrics
 import com.exodidio.mimi.lyrics.RomanizedStatus
-import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.lyrics.LyricsQuery
 import kotlinx.coroutines.launch
 
 /** What there is to show for the song playing right now. */
@@ -223,7 +223,7 @@ private fun rememberRomanised(lyrics: Lyrics, enabled: Boolean): List<String>? {
  */
 @Composable
 fun MissingLyrics(
-    track: Track?,
+    question: LyricsQuery?,
     positionMs: Long,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -233,9 +233,9 @@ fun MissingLyrics(
     val finder = remember(context) { (context.applicationContext as MimiApplication).lyricsFinder }
     val scope = rememberCoroutineScope()
 
-    var found by remember(track?.id) { mutableStateOf<Lyrics?>(null) }
-    var searching by remember(track?.id) { mutableStateOf(false) }
-    var searched by remember(track?.id) { mutableStateOf(false) }
+    var found by remember(question?.key) { mutableStateOf<Lyrics?>(null) }
+    var searching by remember(question?.key) { mutableStateOf(false) }
+    var searched by remember(question?.key) { mutableStateOf(false) }
 
     found?.let { lyrics ->
         LyricsPanel(lyrics = lyrics, positionMs = positionMs, onSeek = onSeek, modifier = modifier)
@@ -246,13 +246,13 @@ fun MissingLyrics(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             LyricsMessage("No lyrics in this file.")
 
-            if (track != null) {
+            if (question != null) {
                 if (allowed) {
                     Button(
                         onClick = {
                             searching = true
                             scope.launch {
-                                val answer = finder.find(track)
+                                val answer = finder.find(question)
                                 found = answer.takeIf { !it.isEmpty }
                                 searched = true
                                 searching = false

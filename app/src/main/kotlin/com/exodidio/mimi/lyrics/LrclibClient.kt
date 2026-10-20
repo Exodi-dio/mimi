@@ -1,6 +1,5 @@
 package com.exodidio.mimi.lyrics
 
-import com.exodidio.mimi.library.Track
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -10,61 +9,61 @@ import kotlinx.coroutines.withContext
 /**
  * Asks lrclib.net for lyrics.
  *
- * A public database, no account and no key, which is the whole reason it is the one service
- * this app talks to. Its API is deliberately small: `/api/get` is an exact match on artist,
- * title, album and length, and `/api/search` is a looser query for when the exact match
- * misses — a song whose tags disagree with the database by a second of length, for
- * instance, which is most of them.
+ * A public database: no account, no key, nothing to configure. Two questions are asked of
+ * it. `/api/get` is an exact match on artist, title, album and length, and a hit there is
+ * the song that was asked about. `/api/search` is looser, for the ordinary case where the
+ * tags disagree with the database -- a file reading "1979" against a record filed as
+ * "1979 - Remastered" is common enough to be worth a second question.
  *
- * Built on [HttpURLConnection] rather than a client library because this is two GET
- * requests. Pulling a networking stack into an app that had none, to make two calls, would
- * be a poor trade in both size and dependencies.
- *
- * Every failure is a null or an empty list. A song without lyrics is a small annoyance; an
- * app that stops playing because a request timed out is not.
+ * Only two GET requests, so [HttpURLConnection] rather than a networking stack: a
+ * dependency that arrives with interceptors and a JSON parser would be a poor trade. Every
+ * failure comes back empty. A song without lyrics is a small annoyance; an app that stops
+ * playing because a request timed out is not.
  */
 class LrclibClient {
 
-    /**
-     * The exact match: same artist, same title, same album, same length.
-     *
-     * Returns everything the answer contained, so the caller can prefer a timed version
-     * over an untimed one.
-     */
-    suspend fun lookup(track: Track): List<Map<String, String>> = withContext(Dispatchers.IO) {
-        val title = track.title.trim()
-        if (title.isEmpty()) return@withContext emptyList()
+    /** The exact match, or an empty list when the database does not have this song. */
+    suspend fun lookup(question: LyricsQuery): List<Map<String, String>> =
+        withContext(Dispatchers.IO) {
+            val title = question.title.trim()
+            if (title.isEmpty()) return@withContext emptyList()
 
-        val parameters = buildList {
-            add("track_name" to title)
-            track.artist?.takeIf { it.isNotBlank() }?.let { add("artist_name" to it.trim()) }
-            track.album?.takeIf { it.isNotBlank() }?.let { add("album_name" to it.trim()) }
-            // The signature includes the length, and the database's copy of it is only as
-            // good as the tags it was submitted from, so it is offered but not insisted on.
-            if (track.durationMs > 0) add("duration" to (track.durationMs / 1_000).toString())
+            val parameters = buildList {
+                add("track_name" to title)
+                question.artist?.takeIf { it.isNotBlank() }?.let { add("artist_name" to it.trim()) }
+                question.album?.takeIf { it.isNotBlank() }?.let { add("album_name" to it.trim()) }
+                // The signature includes the length, and the database's copy of it is only
+                // as good as the tags it was submitted from, so it is offered but not
+                // insisted on.
+                if (question.durationMs > 0) {
+                    add("duration" to (question.durationMs / 1_000).toString())
+                }
+            }
+
+            read(BASE + "/api/get?" + asQueryString(parameters))
         }
 
-        runCatching {
-            LyricsJson.objects(request(BASE + "/api/get?" + query(parameters)))
-        }.getOrDefault(emptyList())
-    }
+    /** A looser question, for when the exact one found nothing. */
+    suspend fun search(question: LyricsQuery): List<Map<String, String>> =
+        withContext(Dispatchers.IO) {
+            val title = question.title.trim()
+            if (title.isEmpty()) return@withContext emptyList()
 
-    /** A looser query, for when the exact match found nothing. */
-    suspend fun search(track: Track): List<Map<String, String>> = withContext(Dispatchers.IO) {
-        val title = track.title.trim()
-        if (title.isEmpty()) return@withContext emptyList()
+            val parameters = buildList {
+                add("track_name" to title)
+                question.artist?.takeIf { it.isNotBlank() }?.let { add("artist_name" to it.trim()) }
+            }
 
-        val parameters = buildList {
-            add("track_name" to title)
-            track.artist?.takeIf { it.isNotBlank() }?.let { add("artist_name" to it.trim()) }
+            read(BASE + "/api/search?" + asQueryString(parameters))
         }
 
-        runCatching {
-            LyricsJson.objects(request(BASE + "/api/search?" + query(parameters)))
-        }.getOrDefault(emptyList())
+    /** The parsed answer, or nothing at all when the request did not land. */
+    private fun read(address: String): List<Map<String, String>> {
+        val body = request(address) ?: return emptyList()
+        return runCatching { LyricsJson.objects(body) }.getOrDefault(emptyList())
     }
 
-    private fun query(parameters: List<Pair<String, String>>): String =
+    private fun asQueryString(parameters: List<Pair<String, String>>): String =
         parameters.joinToString("&") { (name, value) ->
             name + "=" + URLEncoder.encode(value, "UTF-8")
         }
@@ -72,19 +71,21 @@ class LrclibClient {
     private fun request(address: String): String? {
         var opened: HttpURLConnection? = null
         return try {
-            val connection = URL(address).openConnection() as HttpURLConnection
+            val connection = (URL(address).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                setRequestProperty("User-Agent", USER_AGENT)
+                setRequestProperty("Accept", "application/json")
+            }
             opened = connection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = TIMEOUT_MS
-            connection.readTimeout = TIMEOUT_MS
-            // Somebody should be able to see who is asking. It names the app, not the
-            // listener, and is the only thing sent that they did not choose to send.
-            connection.setRequestProperty("User-Agent", USER_AGENT)
-            connection.setRequestProperty("Accept", "application/json")
 
-            // 404 is the database saying it does not have this song, which is an answer.
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
-            connection.inputStream.bufferedReader().use { it.readText() }
+            // Not an error: the database saying it does not have this song is an answer.
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                null
+            } else {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            }
         } catch (_: Exception) {
             null
         } finally {
