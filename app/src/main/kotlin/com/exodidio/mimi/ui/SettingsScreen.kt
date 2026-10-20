@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.library.AlbumSort
 import com.exodidio.mimi.library.ArtistSort
 import com.exodidio.mimi.library.FolderSummary
-import com.exodidio.mimi.library.EqualizerPreset
 import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.Settings
 import com.exodidio.mimi.library.SongSort
@@ -177,10 +176,16 @@ fun SettingsScreen(
 
         SettingsChoice.EQUALIZER_PRESET -> ChoiceDialog(
             title = "Shape",
-            options = EqualizerPreset.entries.map { it.label },
-            selectedIndex = settings.equalizerPreset.ordinal,
+            options = settings.equalizerChoices.map { it.name },
+            selectedIndex = settings.equalizerChoices.indexOfFirst { it.key == settings.equalizerPresetKey },
             onPick = { index ->
-                onChange { it.copy(equalizerPreset = EqualizerPreset.entries[index]) }
+                settings.equalizerChoices.getOrNull(index)?.let { chosen ->
+                    // Picking a curve brings its gains with it; the key and the gains are
+                    // stored apart so a dragged curve can still say which one it came from.
+                    onChange {
+                        it.copy(equalizerPresetKey = chosen.key, equalizerGains = chosen.gainsDb)
+                    }
+                }
                 openChoice = null
             },
             onDismiss = { openChoice = null },
@@ -346,7 +351,12 @@ private fun PlaybackPage(
         SettingsChoiceRow(
             title = "Shape",
             subtitle = "How the equaliser colours the sound.",
-            value = settings.equalizerPreset.label,
+            value = settings.equalizerChoices
+                .firstOrNull { it.key == settings.equalizerPresetKey }
+                ?.let { chosen ->
+                    if (chosen.gainsDb == settings.equalizerGains) chosen.name else "${chosen.name} (edited)"
+                }
+                ?: "Flat",
             onClick = onChooseEqualizerPreset,
         )
     }

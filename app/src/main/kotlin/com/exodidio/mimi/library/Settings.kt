@@ -78,11 +78,36 @@ data class Settings(
     val artistSort: ArtistSort = ArtistSort.NAME,
     /** Whether the equaliser shapes the sound. Off, so nothing is altered unasked. */
     val equalizerEnabled: Boolean = false,
-    /** The shape it applies when it is on. */
-    val equalizerPreset: EqualizerPreset = EqualizerPreset.FLAT,
+    /** Which curve is in force, by key. A key that means nothing here falls back to flat. */
+    val equalizerPresetKey: String = EQUALIZER_FLAT_KEY,
+    /** The curve itself, which stops matching its preset as soon as a band is dragged. */
+    val equalizerGains: List<Float> = EQUALIZER_FLAT_CURVE,
+    /** Curves the listener named and keeps. */
+    val equalizerProfiles: List<EqualizerProfile> = emptyList(),
     /** Folders whose songs are left out of the library entirely. */
     val excludedFolders: List<String> = emptyList(),
 ) {
+    /** Every curve on offer: the ones that came with the app, then the listener's own. */
+    val equalizerChoices: List<EqualizerProfile> get() = EqualizerPresets + equalizerProfiles
+
+    /**
+     * The curve in force, as a profile.
+     *
+     * The engine wants one thing to apply rather than a key to look up, and the gains are
+     * held apart from the key so an edited curve still knows which preset it came from --
+     * which is what lets the screen offer to put it back.
+     */
+    val equalizerProfile: EqualizerProfile
+        get() {
+            val chosen = equalizerChoices.firstOrNull { it.key == equalizerPresetKey }
+            return EqualizerProfile(
+                key = equalizerPresetKey,
+                name = chosen?.name ?: EqualizerPresets.first().name,
+                gainsDb = equalizerGains,
+                isBuiltIn = chosen?.isBuiltIn ?: true,
+            )
+        }
+
     companion object {
         /**
          * Every key is under one prefix so the settings can be read with a single query
@@ -107,6 +132,8 @@ data class Settings(
         private const val ARTIST_SORT = "setting.artist_sort"
         private const val EQUALIZER_ENABLED = "setting.equalizer_enabled"
         private const val EQUALIZER_PRESET = "setting.equalizer_preset"
+        private const val EQUALIZER_GAINS = "setting.equalizer_gains"
+        private const val EQUALIZER_PROFILES = "setting.equalizer_profiles"
         private const val EXCLUDED_FOLDERS = "setting.excluded_folders"
 
         /**
@@ -145,7 +172,9 @@ data class Settings(
                     ?.let { name -> ArtistSort.entries.firstOrNull { it.name == name } }
                     ?: defaults.artistSort,
                 equalizerEnabled = stored.boolean(EQUALIZER_ENABLED, defaults.equalizerEnabled),
-                equalizerPreset = EqualizerPreset.of(stored[EQUALIZER_PRESET]),
+                equalizerPresetKey = stored[EQUALIZER_PRESET] ?: defaults.equalizerPresetKey,
+                equalizerGains = decodeCurve(stored[EQUALIZER_GAINS]) ?: defaults.equalizerGains,
+                equalizerProfiles = decodeProfiles(stored[EQUALIZER_PROFILES]),
                 excludedFolders = decodeExcludedFolders(stored[EXCLUDED_FOLDERS])
             )
         }
@@ -167,7 +196,9 @@ data class Settings(
             MetaEntry(ALBUM_SORT, settings.albumSort.name),
             MetaEntry(ARTIST_SORT, settings.artistSort.name),
             MetaEntry(EQUALIZER_ENABLED, if (settings.equalizerEnabled) "1" else "0"),
-            MetaEntry(EQUALIZER_PRESET, settings.equalizerPreset.name),
+            MetaEntry(EQUALIZER_PRESET, settings.equalizerPresetKey),
+            MetaEntry(EQUALIZER_GAINS, encodeCurve(settings.equalizerGains)),
+            MetaEntry(EQUALIZER_PROFILES, encodeProfiles(settings.equalizerProfiles)),
             MetaEntry(EXCLUDED_FOLDERS, encodeExcludedFolders(settings.excludedFolders)),
         )
 

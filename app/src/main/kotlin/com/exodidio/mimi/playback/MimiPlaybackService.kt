@@ -58,7 +58,7 @@ class MimiPlaybackService : MediaSessionService() {
                     equalizer.apply(
                         sessionId = player.audioSessionId,
                         enabled = current.equalizerEnabled,
-                        preset = current.equalizerPreset,
+                        curve = current.equalizerProfile,
                     )
                 }
             },
@@ -104,7 +104,7 @@ class MimiPlaybackService : MediaSessionService() {
                 equalizer.apply(
                     sessionId = player.audioSessionId,
                     enabled = settings.equalizerEnabled,
-                    preset = settings.equalizerPreset,
+                    curve = settings.equalizerProfile,
                 )
             }
         }
