@@ -25,7 +25,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.MimiApplication
+import com.exodidio.mimi.lyrics.AndroidRomanizationEngine
 import com.exodidio.mimi.lyrics.Lyrics
+import com.exodidio.mimi.lyrics.RomanizeLyrics
+import com.exodidio.mimi.lyrics.RomanizedStatus
 
 /** What there is to show for the song playing right now. */
 sealed interface LyricsState {
@@ -73,6 +76,8 @@ fun LyricsPanel(
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val romanised = rememberRomanised(lyrics, LocalSettings.current.romanizeLyrics)
+
     if (!lyrics.synced) {
         Column(
             modifier = modifier
@@ -80,9 +85,10 @@ fun LyricsPanel(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
         ) {
-            lyrics.lines.forEach { line ->
+            lyrics.lines.forEachIndexed { index, line ->
                 LyricText(
                     text = line.text,
+                    romanised = romanised?.getOrNull(index).orEmpty(),
                     current = false,
                     modifier = Modifier.padding(vertical = 6.dp),
                 )
@@ -107,6 +113,7 @@ fun LyricsPanel(
         itemsIndexed(lyrics.lines) { index, line ->
             LyricText(
                 text = line.text,
+                romanised = romanised?.getOrNull(index).orEmpty(),
                 current = index == currentIndex,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -134,21 +141,64 @@ fun LyricsMessage(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun LyricText(text: String, current: Boolean, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = if (current) {
-            MaterialTheme.typography.titleMedium
-        } else {
-            MaterialTheme.typography.bodyLarge
-        },
-        fontWeight = if (current) FontWeight.SemiBold else null,
-        color = if (current) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        textAlign = TextAlign.Center,
-        modifier = modifier.padding(horizontal = 8.dp),
-    )
+private fun LyricText(
+    text: String,
+    current: Boolean,
+    modifier: Modifier = Modifier,
+    romanised: String = "",
+) {
+    Column(modifier = modifier.padding(horizontal = 8.dp)) {
+        Text(
+            text = text,
+            style = if (current) {
+                MaterialTheme.typography.titleMedium
+            } else {
+                MaterialTheme.typography.bodyLarge
+            },
+            fontWeight = if (current) FontWeight.SemiBold else null,
+            color = if (current) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        // Under the original rather than instead of it: reading a transliteration is
+        // easier with the characters it came from still in sight.
+        if (romanised.isNotBlank() && romanised != text) {
+            Text(
+                text = romanised,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (current) 0.9f else 0.6f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/**
+ * The same lines written out in latin letters, or null when that was not asked for.
+ *
+ * The engine is kept for the life of the app because it holds the dictionaries once they
+ * are read, and rebuilding it per song would read a megabyte of them again each time.
+ * Lines it cannot read come back blank rather than as a copy of themselves, so a sheet
+ * that is mostly English does not double in length.
+ */
+@Composable
+private fun rememberRomanised(lyrics: Lyrics, enabled: Boolean): List<String>? {
+    if (!enabled) return null
+
+    val context = LocalContext.current
+    val romaniser = remember(context) {
+        RomanizeLyrics(AndroidRomanizationEngine { name -> context.assets.open(name) })
+    }
+
+    return produceState<List<String>?>(initialValue = null, lyrics, romaniser) {
+        val converted = romaniser(lyrics.lines.map { it.text })
+        value = converted.map { line ->
+            if (line.status == RomanizedStatus.Converted) line.text else ""
+        }
+    }.value
 }

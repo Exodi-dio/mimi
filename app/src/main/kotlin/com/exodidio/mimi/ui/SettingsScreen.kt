@@ -347,6 +347,12 @@ private fun PlaybackPage(
             ?: "Flat",
         onClick = onChooseEqualizerPreset,
     )
+    SettingsToggleRow(
+        title = "Read lyrics in latin letters",
+        subtitle = "Puts a transliteration under Chinese and Korean words. The alphabets are already in the app, so it works with no connection.",
+        checked = settings.romanizeLyrics,
+        onCheckedChange = { value -> onChange { it.copy(romanizeLyrics = value) } },
+    )
 }
 
 @Composable
