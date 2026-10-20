@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.ArrowDown
+import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Ellipsis
 import com.composables.icons.lucide.Heart
@@ -63,6 +65,8 @@ fun TrackRow(
     onAddToQueue: (() -> Unit)? = null,
     onAddToPlaylist: (() -> Unit)? = null,
     onRemoveFromPlaylist: (() -> Unit)? = null,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
 ) {
     // Songs that name no album share the "unknown album" id, so they key on the file
     // itself rather than on an album they do not have.
@@ -191,6 +195,18 @@ fun TrackRow(
                 MenuAction("Add to playlist", Lucide.ListPlus) {
                     menuOpen = false
                     onAddToPlaylist()
+                }
+            }
+            if (onMoveUp != null) {
+                MenuAction("Move up", Lucide.ArrowUp) {
+                    menuOpen = false
+                    onMoveUp()
+                }
+            }
+            if (onMoveDown != null) {
+                MenuAction("Move down", Lucide.ArrowDown) {
+                    menuOpen = false
+                    onMoveDown()
                 }
             }
             if (onRemoveFromPlaylist != null) {

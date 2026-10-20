@@ -215,6 +215,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { library.removeFromPlaylist(playlistId, trackId) }
     }
 
+    fun moveInPlaylist(playlistId: Long, trackId: Long, toIndex: Int) {
+        viewModelScope.launch { library.moveInPlaylist(playlistId, trackId, toIndex) }
+    }
+
     private val _scanning = MutableStateFlow(false)
     val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
 

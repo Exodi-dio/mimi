@@ -341,6 +341,13 @@ private fun MimiAppContent() {
                                     onRemove = { trackId ->
                                         libraryViewModel.removeFromPlaylist(screen.playlistId, trackId)
                                     },
+                                    onMove = { trackId, toIndex ->
+                                        libraryViewModel.moveInPlaylist(
+                                            screen.playlistId,
+                                            trackId,
+                                            toIndex,
+                                        )
+                                    },
                                     onRename = { renameTarget = playlist },
                                     onDelete = { deleteTarget = playlist },
                                 )

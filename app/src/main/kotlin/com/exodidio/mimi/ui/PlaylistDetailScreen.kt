@@ -50,6 +50,7 @@ fun PlaylistDetailScreen(
     onPlayNext: (Track) -> Unit,
     onAddToQueue: (Track) -> Unit,
     onRemove: (Long) -> Unit,
+    onMove: (trackId: Long, toIndex: Int) -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     playingMediaId: String? = null,
@@ -138,6 +139,18 @@ fun PlaylistDetailScreen(
                         onPlayNext = { onPlayNext(track) },
                         onAddToQueue = { onAddToQueue(track) },
                         onRemoveFromPlaylist = { onRemove(track.id) },
+                        // The ends of the list only offer the direction that goes
+                        // somewhere, so the menu never grows an action that does nothing.
+                        onMoveUp = if (index > 0) {
+                            { onMove(track.id, index - 1) }
+                        } else {
+                            null
+                        },
+                        onMoveDown = if (index < tracks.lastIndex) {
+                            { onMove(track.id, index + 1) }
+                        } else {
+                            null
+                        },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }

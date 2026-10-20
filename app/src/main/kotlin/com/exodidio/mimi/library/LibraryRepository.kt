@@ -113,6 +113,29 @@ class LibraryRepository(
         playlistDao.removeEntry(playlistId, trackId)
 
     /**
+     * Moves a song to a new place in its playlist.
+     *
+     * Every position from the destination onwards is rewritten rather than only the two
+     * that swapped, because the gaps left by earlier removals make a running order that is
+     * merely sorted into place drift apart over time. One transaction, so the list is never
+     * read half-moved.
+     */
+    suspend fun moveInPlaylist(playlistId: Long, trackId: Long, toIndex: Int) {
+        database.withTransaction {
+            val order = playlistDao.entryTrackIds(playlistId).toMutableList()
+            val from = order.indexOf(trackId)
+            if (from < 0) return@withTransaction
+
+            val to = toIndex.coerceIn(0, order.lastIndex)
+            if (from == to) return@withTransaction
+
+            order.removeAt(from)
+            order.add(to, trackId)
+            order.forEachIndexed { index, id -> playlistDao.setPosition(playlistId, id, index) }
+        }
+    }
+
+    /**
      * Listening history, keyed by track.
      *
      * Handed out as a map rather than a list because every caller wants to ask "how many

@@ -328,6 +328,16 @@ interface PlaylistDao {
 
     @Query("DELETE FROM playlist_entries WHERE playlist_id = :playlistId AND track_id = :trackId")
     suspend fun removeEntry(playlistId: Long, trackId: Long)
+
+    /** The running order as ids, so a move can be reasoned about without the songs. */
+    @Query("SELECT track_id FROM playlist_entries WHERE playlist_id = :playlistId ORDER BY position ASC")
+    suspend fun entryTrackIds(playlistId: Long): List<Long>
+
+    @Query(
+        "UPDATE playlist_entries SET position = :position " +
+            "WHERE playlist_id = :playlistId AND track_id = :trackId"
+    )
+    suspend fun setPosition(playlistId: Long, trackId: Long, position: Int)
 }
 
 /**
