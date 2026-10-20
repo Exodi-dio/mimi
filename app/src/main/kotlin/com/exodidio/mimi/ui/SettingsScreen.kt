@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.library.AlbumSort
 import com.exodidio.mimi.library.ArtistSort
+import com.exodidio.mimi.library.EqualizerPreset
 import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.Settings
 import com.exodidio.mimi.library.SongSort
@@ -33,7 +34,7 @@ private enum class SettingsTab(val label: String) {
 }
 
 /** Which question, if any, is currently open in a dialog. */
-private enum class SettingsChoice { MIN_LENGTH, THEME, SONG_SORT, ALBUM_SORT, ARTIST_SORT }
+private enum class SettingsChoice { MIN_LENGTH, THEME, SONG_SORT, ALBUM_SORT, ARTIST_SORT, EQUALIZER_PRESET }
 
 /**
  * Settings, split into pages.
@@ -88,7 +89,11 @@ fun SettingsScreen(
                     onChooseArtistSort = { openChoice = SettingsChoice.ARTIST_SORT },
                 )
 
-                SettingsTab.PLAYBACK -> PlaybackPage(settings = settings, onChange = onChange)
+                SettingsTab.PLAYBACK -> PlaybackPage(
+                    settings = settings,
+                    onChange = onChange,
+                    onChooseEqualizerPreset = { openChoice = SettingsChoice.EQUALIZER_PRESET },
+                )
 
                 SettingsTab.APPEARANCE -> AppearancePage(
                     settings = settings,
@@ -153,6 +158,17 @@ fun SettingsScreen(
             selectedIndex = settings.artistSort.ordinal,
             onPick = { index ->
                 onChange { it.copy(artistSort = ArtistSort.entries[index]) }
+                openChoice = null
+            },
+            onDismiss = { openChoice = null },
+        )
+
+        SettingsChoice.EQUALIZER_PRESET -> ChoiceDialog(
+            title = "Shape",
+            options = EqualizerPreset.entries.map { it.label },
+            selectedIndex = settings.equalizerPreset.ordinal,
+            onPick = { index ->
+                onChange { it.copy(equalizerPreset = EqualizerPreset.entries[index]) }
                 openChoice = null
             },
             onDismiss = { openChoice = null },
@@ -248,6 +264,7 @@ private fun LibraryPage(
 private fun PlaybackPage(
     settings: Settings,
     onChange: ((Settings) -> Settings) -> Unit,
+    onChooseEqualizerPreset: () -> Unit,
 ) {
     SettingsSectionHeading("Behaviour")
     SettingsToggleRow(
@@ -280,6 +297,22 @@ private fun PlaybackPage(
         checked = settings.showRemainingTime,
         onCheckedChange = { value -> onChange { it.copy(showRemainingTime = value) } },
     )
+    SettingsToggleRow(
+        title = "Equaliser",
+        subtitle = "Shapes the sound of what is playing. Off unless you ask for it.",
+        checked = settings.equalizerEnabled,
+        onCheckedChange = { value -> onChange { it.copy(equalizerEnabled = value) } },
+    )
+    // Only worth offering a shape once there is something shaping, and a row that does
+    // nothing is worse than a row that is not there.
+    if (settings.equalizerEnabled) {
+        SettingsChoiceRow(
+            title = "Shape",
+            subtitle = "How the equaliser colours the sound.",
+            value = settings.equalizerPreset.label,
+            onClick = onChooseEqualizerPreset,
+        )
+    }
 }
 
 @Composable

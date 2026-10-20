@@ -74,6 +74,10 @@ data class Settings(
     val albumSort: AlbumSort = AlbumSort.NAME,
     /** The field the artists list is ordered by. */
     val artistSort: ArtistSort = ArtistSort.NAME,
+    /** Whether the equaliser shapes the sound. Off, so nothing is altered unasked. */
+    val equalizerEnabled: Boolean = false,
+    /** The shape it applies when it is on. */
+    val equalizerPreset: EqualizerPreset = EqualizerPreset.FLAT,
 ) {
     companion object {
         /**
@@ -96,6 +100,8 @@ data class Settings(
         private const val SORT_DESCENDING = "setting.sort_descending"
         private const val ALBUM_SORT = "setting.album_sort"
         private const val ARTIST_SORT = "setting.artist_sort"
+        private const val EQUALIZER_ENABLED = "setting.equalizer_enabled"
+        private const val EQUALIZER_PRESET = "setting.equalizer_preset"
 
         /**
          * Reads a set of stored rows into settings.
@@ -131,6 +137,8 @@ data class Settings(
                 artistSort = stored[ARTIST_SORT]
                     ?.let { name -> ArtistSort.entries.firstOrNull { it.name == name } }
                     ?: defaults.artistSort,
+                equalizerEnabled = stored.boolean(EQUALIZER_ENABLED, defaults.equalizerEnabled),
+                equalizerPreset = EqualizerPreset.of(stored[EQUALIZER_PRESET])
             )
         }
 
@@ -149,6 +157,8 @@ data class Settings(
             MetaEntry(SORT_DESCENDING, if (settings.sortDescending) "1" else "0"),
             MetaEntry(ALBUM_SORT, settings.albumSort.name),
             MetaEntry(ARTIST_SORT, settings.artistSort.name),
+            MetaEntry(EQUALIZER_ENABLED, if (settings.equalizerEnabled) "1" else "0"),
+            MetaEntry(EQUALIZER_PRESET, settings.equalizerPreset.name),
         )
 
         private fun Map<String, String>.boolean(key: String, default: Boolean): Boolean =
