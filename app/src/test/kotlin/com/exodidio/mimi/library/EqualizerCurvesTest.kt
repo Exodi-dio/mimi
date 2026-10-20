@@ -130,7 +130,7 @@ class EqualizerCurvesTest {
     @Test
     fun `a name is stripped of the characters the storage uses`() {
         assertEquals("Night bus", cleanProfileName("Night|bus"))
-        assertEquals("Quiet;car", cleanProfileName("Quiet;car"))
+        assertEquals("Quiet car", cleanProfileName("Quiet;car"))
         assertEquals("Bedroom", cleanProfileName("  Bedroom  "))
     }
 
