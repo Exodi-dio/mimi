@@ -42,8 +42,9 @@ and it is not meant to be.
 | Mini player with a progress rule, and a Now Playing screen with artwork, lyrics and queue faces | |
 | Resume last track, position, shuffle and repeat | |
 | Cover art from the files, falling back to the device's album art index | |
-| Listening history: play and skip counts, recently played, most played | |
+| Listening history: play and skip counts, time heard per day, recently played, most played | |
 | Statistics: what the library holds and how much of it has been played | |
+| Insights: counts, formats and growth for the library, and listening charts, genres, artists and top songs over 7 days, 30 days or all time, switchable in Tools | |
 | Everything known about a song on one screen, and sharing its file | |
 | Pick several songs at once and love them, queue them or put them in a playlist | |
 | Folders left out of the library without deleting anything | |
