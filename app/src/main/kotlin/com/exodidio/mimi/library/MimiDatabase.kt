@@ -16,8 +16,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistEntry::class,
         PlayStat::class,
         ListenDay::class,
+        TagOverride::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class MimiDatabase : RoomDatabase() {
@@ -33,6 +34,8 @@ abstract class MimiDatabase : RoomDatabase() {
     abstract fun playStatDao(): PlayStatDao
 
     abstract fun listenDayDao(): ListenDayDao
+
+    abstract fun tagOverrideDao(): TagOverrideDao
 
     companion object {
         private const val NAME = "mimi.db"
@@ -169,6 +172,36 @@ abstract class MimiDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v5 -> v6 adds the corrections the app holds for songs whose files could not be
+         * written to.
+         *
+         * The table is new and starts empty, because no earlier version had anything to
+         * correct: every song showed the tags its file carried. Nothing that exists is
+         * changed by this, so the playlists, the loved songs and the listening history
+         * beside it are left exactly as they were.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `tag_overrides` (
+                        `track_id` INTEGER NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `artist` TEXT,
+                        `album` TEXT,
+                        `album_artist` TEXT,
+                        `year` INTEGER,
+                        `track_number` INTEGER,
+                        `genre` TEXT,
+                        `updated_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`track_id`)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         @Volatile
         private var instance: MimiDatabase? = null
 
@@ -176,7 +209,13 @@ abstract class MimiDatabase : RoomDatabase() {
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, MimiDatabase::class.java, NAME)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                    )
                     // Everything the app cannot rebuild lives in these tables, so the
                     // upgrade itself must not be the thing that loses it. The fallback is
                     // only there so a phone that somehow cannot walk the migration opens a

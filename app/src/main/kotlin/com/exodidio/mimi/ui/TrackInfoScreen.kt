@@ -35,6 +35,7 @@ import com.composables.icons.lucide.ListPlus
 import com.composables.icons.lucide.ListStart
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MicVocal
+import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Share2
 import com.exodidio.mimi.library.PlayStat
@@ -68,6 +69,7 @@ fun TrackInfoScreen(
     onShare: () -> Unit,
     onGoToAlbum: () -> Unit,
     onGoToArtist: () -> Unit,
+    onEditTags: () -> Unit = {},
     modifier: Modifier = Modifier,
     playingMediaId: String? = null,
 ) {
@@ -154,6 +156,8 @@ fun TrackInfoScreen(
             InfoRow("Genre", track.genre)
             InfoRow("Composer", track.composer)
             InfoRow("Length", formatDuration(track.durationMs))
+
+            InfoLink("Edit the tags", Lucide.Pencil, onEditTags)
 
             InfoSection("The file")
             InfoRow("Name", track.fileName)

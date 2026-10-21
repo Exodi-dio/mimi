@@ -17,6 +17,8 @@ import com.exodidio.mimi.library.Track
 data class TrackActions(
     /** Show everything known about a song. */
     val onShowInfo: (Track) -> Unit = {},
+    /** Open the editor for a song's tags. */
+    val onEditTags: (Track) -> Unit = {},
     /** Whether this song is currently picked out. */
     val isSelected: (Long) -> Boolean = { false },
     /** Whether anything is picked out at all, so a tap means "pick" rather than "play". */

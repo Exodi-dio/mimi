@@ -21,8 +21,11 @@ and it is not meant to be.
 | Eight library sections: songs, albums, artists, playlists, genres, composers, years, folders | Last.fm scrobbling |
 | Albums and artists told apart by their own tags, so a compilation does not credit every guest | A second playback engine |
 | Playlists: make, rename, delete, add, remove and reorder songs | Branding / app icon |
+| Playlists exported as M3U files into a folder you choose, and imported back from a file another player wrote | |
+| Backups of the playlists, the settings and the listening history, written to a file you choose, with automatic backups on a daily or weekly schedule | |
+| A tag editor for a song or for a whole album, writing into the file where the system allows it and keeping the correction in the library where it does not | |
 | Songs sorted by title, artist, album, length, date added or file name, ties broken predictably | R8 shrinking |
-| Albums sorted by name, album artist or song count; artists by name, albums or song count | Backup files, and choosing a playlist export folder |
+| Albums sorted by name, album artist or song count; artists by name, albums or song count | |
 | Every list header counts its songs and running time, with sort and in-list search beside it | |
 | Loved songs, with a shelf of their own on the home screen | |
 | Search across titles, artists and albums, with recent searches offered back | |

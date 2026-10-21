@@ -1,5 +1,9 @@
 package com.exodidio.mimi.ui
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -25,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.library.AlbumSort
 import com.exodidio.mimi.library.ArtistSort
@@ -35,6 +40,7 @@ import com.exodidio.mimi.library.Settings
 import com.exodidio.mimi.library.SongSort
 import com.exodidio.mimi.library.ThemeMode
 import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.library.backupFileName
 import com.exodidio.mimi.library.durationMaxMsFor
 import com.exodidio.mimi.library.durationMaxStop
 import com.exodidio.mimi.library.durationMinMsFor
@@ -42,6 +48,7 @@ import com.exodidio.mimi.library.durationMinStop
 import com.exodidio.mimi.library.durationRangeLabel
 import com.exodidio.mimi.library.duplicateGroups
 import com.exodidio.mimi.library.removingHiddenName
+import com.exodidio.mimi.library.treeFolderLabel
 import kotlinx.coroutines.delay
 
 /** Which question, if any, is currently open in a dialog. */
@@ -63,15 +70,25 @@ private enum class SettingsChoice {
     REPLAYGAIN_PREAMP,
     METADATA,
     NOW_PLAYING_THEME,
-    EXPORT_PATH,
     LAST_ADDED_RANGE,
     RECENTLY_PLAYED_RANGE,
-    BACKUP_CREATE,
-    BACKUP_RESTORE,
     BACKUP_FREQUENCY,
-    BACKUP_FOLDER,
     WHATS_NEW,
 }
+
+/**
+ * The rows of the settings pages that need the system's own dialogs.
+ *
+ * Choosing a folder or a file is done by the system rather than by the app, so these
+ * actions are held together and handed down as one thing rather than as four separate
+ * arguments on every row of every page.
+ */
+private data class SettingsPickers(
+    val exportFolder: () -> Unit = {},
+    val backupFolder: () -> Unit = {},
+    val createBackup: () -> Unit = {},
+    val restoreBackup: () -> Unit = {},
+)
 
 /** How long a row found through search stays tinted before it fades back. */
 private const val HIGHLIGHT_MILLIS = 1_600
@@ -132,12 +149,69 @@ fun SettingsGroupScreen(
     onOpenManageTabs: () -> Unit,
     onOpenManageRows: () -> Unit,
     onBack: () -> Unit,
+    onCreateBackup: (Uri) -> Unit = {},
+    onRestoreBackup: (Uri) -> Unit = {},
     modifier: Modifier = Modifier,
     reveal: SettingsReveal? = null,
 ) {
     var openChoice by remember { mutableStateOf<SettingsChoice?>(null) }
     var highlighted by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+
+    /**
+     * Keeps the folder the listener chose.
+     *
+     * The permission is asked to be kept across restarts, because a folder chosen for
+     * exports and for backups is meant to still be there tomorrow. A provider that will
+     * not keep it is not a reason to refuse the choice: the folder still works for as
+     * long as the app is running.
+     */
+    fun keepFolder(uri: Uri) {
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }
+    }
+
+    val exportFolder = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        keepFolder(uri)
+        onChange { it.copy(playlistExportPath = uri.toString()) }
+    }
+
+    val backupFolder = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        keepFolder(uri)
+        onChange { it.copy(backupFolder = uri.toString()) }
+    }
+
+    val createBackup = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) onCreateBackup(uri)
+    }
+
+    val restoreBackup = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) onRestoreBackup(uri)
+    }
+
+    val pickers = SettingsPickers(
+        exportFolder = { exportFolder.launch(null) },
+        backupFolder = { backupFolder.launch(null) },
+        createBackup = { createBackup.launch(backupFileName(System.currentTimeMillis())) },
+        restoreBackup = {
+            restoreBackup.launch(arrayOf("text/plain", "application/octet-stream", "*/*"))
+        },
+    )
 
     // Worked out once per visit rather than on every keystroke elsewhere: the duplicate
     // finder is a whole-library pass and this page may be open for a while.
@@ -180,6 +254,7 @@ fun SettingsGroupScreen(
             onChoose = { openChoice = it },
             listState = listState,
             highlighted = highlighted,
+            pickers = pickers,
         )
     }
 
@@ -390,34 +465,6 @@ fun SettingsGroupScreen(
             onDismiss = { openChoice = null },
         )
 
-        SettingsChoice.EXPORT_PATH -> MessageDialog(
-            title = "Playlist export path",
-            message = "Choosing an export folder is not built yet. Playlists stay inside " +
-                "the app, and nothing is written to a file.",
-            onDismiss = { openChoice = null },
-        )
-
-        SettingsChoice.BACKUP_CREATE -> MessageDialog(
-            title = "Create backup",
-            message = "Backup files are not built yet. Your library stays on this device, " +
-                "and nothing has been written.",
-            onDismiss = { openChoice = null },
-        )
-
-        SettingsChoice.BACKUP_RESTORE -> MessageDialog(
-            title = "Restore from backup",
-            message = "Restoring is not built yet, so there is nothing to read. No data " +
-                "has been changed.",
-            onDismiss = { openChoice = null },
-        )
-
-        SettingsChoice.BACKUP_FOLDER -> MessageDialog(
-            title = "Backup folder",
-            message = "Choosing a backup folder is not built yet. The choice is remembered, " +
-                "but no automatic backup is written.",
-            onDismiss = { openChoice = null },
-        )
-
         // The sheet rather than a dialog: a changelog is longer than a question, and it
         // is read rather than answered.
         SettingsChoice.WHATS_NEW -> ChangelogSheet(
@@ -454,6 +501,7 @@ private fun SettingsGroupList(
     onChoose: (SettingsChoice) -> Unit,
     listState: LazyListState,
     highlighted: String?,
+    pickers: SettingsPickers,
 ) {
     val items = remember(group) { settingsGroupItems(group) }
 
@@ -520,6 +568,7 @@ private fun SettingsGroupList(
                                     onOpenManageRows = onOpenManageRows,
                                     onChange = onChange,
                                     onChoose = onChoose,
+                                    pickers = pickers,
                                 )
                                 if (!last) SettingsRowDivider()
                             }
@@ -551,6 +600,7 @@ private fun SettingsEntryRow(
     onOpenManageRows: () -> Unit,
     onChange: ((Settings) -> Settings) -> Unit,
     onChoose: (SettingsChoice) -> Unit,
+    pickers: SettingsPickers,
 ) {
     val subtitle = entry.subtitle
 
@@ -924,11 +974,18 @@ private fun SettingsEntryRow(
             subtitle = subtitle,
         )
 
-        "playlists.export_path" -> SettingsActionRow(
-            title = entry.title,
-            subtitle = settings.playlistExportPath.ifBlank { subtitle },
-            onClick = { onChoose(SettingsChoice.EXPORT_PATH) },
-        )
+        "playlists.export_path" -> {
+            // The folder is shown by the name the system gave it rather than by the
+            // address it is held under, because that address means nothing to a person.
+            val label = remember(settings.playlistExportPath) {
+                treeFolderLabel(settings.playlistExportPath)
+            }
+            SettingsActionRow(
+                title = entry.title,
+                subtitle = label.ifBlank { subtitle },
+                onClick = pickers.exportFolder,
+            )
+        }
 
         "playlists.last_added_range" -> SettingsChoiceRow(
             title = entry.title,
@@ -947,13 +1004,13 @@ private fun SettingsEntryRow(
         "backup.create" -> SettingsActionRow(
             title = entry.title,
             subtitle = subtitle,
-            onClick = { onChoose(SettingsChoice.BACKUP_CREATE) },
+            onClick = pickers.createBackup,
         )
 
         "backup.restore" -> SettingsActionRow(
             title = entry.title,
             subtitle = subtitle,
-            onClick = { onChoose(SettingsChoice.BACKUP_RESTORE) },
+            onClick = pickers.restoreBackup,
         )
 
         "backup.automatic" -> SettingsToggleRow(
@@ -971,12 +1028,17 @@ private fun SettingsEntryRow(
             onClick = { onChoose(SettingsChoice.BACKUP_FREQUENCY) },
         )
 
-        "backup.folder" -> SettingsActionRow(
-            title = entry.title,
-            subtitle = settings.backupFolder.ifBlank { subtitle },
-            enabled = settings.automaticBackups,
-            onClick = { onChoose(SettingsChoice.BACKUP_FOLDER) },
-        )
+        "backup.folder" -> {
+            val label = remember(settings.backupFolder) {
+                treeFolderLabel(settings.backupFolder)
+            }
+            SettingsActionRow(
+                title = entry.title,
+                subtitle = label.ifBlank { subtitle },
+                enabled = settings.automaticBackups,
+                onClick = pickers.backupFolder,
+            )
+        }
 
         "about.version" -> SettingsInfoRow(
             title = entry.title,

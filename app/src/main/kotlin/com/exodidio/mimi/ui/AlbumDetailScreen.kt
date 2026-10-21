@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.composables.icons.lucide.Ellipsis
 import com.composables.icons.lucide.EyeOff
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Shuffle
@@ -61,6 +62,7 @@ fun AlbumDetailScreen(
     modifier: Modifier = Modifier,
     onShuffle: ((List<Track>) -> Unit)? = null,
     onHideAlbum: (String) -> Unit = {},
+    onEditTags: (List<Track>) -> Unit = {},
     playingMediaId: String? = null,
     favoriteIds: Set<Long> = emptySet(),
     onToggleLove: (Long) -> Unit = {},
@@ -114,6 +116,16 @@ fun AlbumDetailScreen(
                             )
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Edit the album tags") },
+                                leadingIcon = {
+                                    Icon(imageVector = Lucide.Pencil, contentDescription = null)
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    onEditTags(tracks)
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text("Hide this album") },
                                 leadingIcon = {

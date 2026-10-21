@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,17 +41,25 @@ import com.composables.icons.lucide.Search
 import com.exodidio.mimi.library.BottomTabId
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.Profile
+import com.exodidio.mimi.library.RestoreOutcome
+import com.exodidio.mimi.library.TagField
+import com.exodidio.mimi.library.TagValues
+import com.exodidio.mimi.library.TagWriter
 import com.exodidio.mimi.library.ThemeMode
 import com.exodidio.mimi.library.Track
 import com.exodidio.mimi.library.addedWithin
 import com.exodidio.mimi.library.addingHiddenName
 import com.exodidio.mimi.library.bottomTabsIn
 import com.exodidio.mimi.library.playedWithin
+import com.exodidio.mimi.library.readBackMatches
 import com.exodidio.mimi.library.splitCredits
+import com.exodidio.mimi.library.tagValues
 import com.exodidio.mimi.ui.theme.MimiTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The shell.
@@ -65,9 +74,12 @@ import kotlinx.coroutines.withContext
  * Settings live behind the drawer, which is opened from the home header. The profile is
  * the avatar beside the same header, so it is a place of its own rather than a fifth
  * destination that also happened to be a menu.
+ *
+ * [openPlayer] asks for the player to be shown as soon as there is something to show it
+ * for, which is how a widget on the home screen opens the app on what it was showing.
  */
 @Composable
-fun MimiApp() {
+fun MimiApp(openPlayer: Boolean = false) {
     val settingsViewModel: SettingsViewModel = viewModel()
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
@@ -85,13 +97,13 @@ fun MimiApp() {
             LocalSettings provides settings,
             LocalSettingsChange provides settingsViewModel::change,
         ) {
-            MimiAppContent()
+            MimiAppContent(openPlayer = openPlayer)
         }
     }
 }
 
 @Composable
-private fun MimiAppContent() {
+private fun MimiAppContent(openPlayer: Boolean) {
     val libraryViewModel: LibraryViewModel = viewModel()
     val playerViewModel: PlayerViewModel = viewModel()
     val navigator: NavigationViewModel = viewModel()
@@ -166,6 +178,21 @@ private fun MimiAppContent() {
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 
+    // The widget on the home screen asks the app to open on the player. The song may
+    // not be back yet, because the session is put back from the database, so the
+    // player is opened once there is something to open it on.
+    LaunchedEffect(openPlayer) {
+        if (!openPlayer) return@LaunchedEffect
+        val restored = withTimeoutOrNull(PLAYER_WAIT_MS) {
+            playerViewModel.state.first { it.current != null }
+        }
+        if (restored?.current != null) {
+            showNowPlaying = true
+        } else {
+            navigator.selectTab(Screen.Library)
+        }
+    }
+
     // Whether the player is showing the queue rather than the words. The queue sits
     // behind its own button now, and this remembers that so the drawer can open the
     // player straight onto it.
@@ -176,6 +203,10 @@ private fun MimiAppContent() {
     var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<PlaylistSummary?>(null) }
     var deleteTarget by remember { mutableStateOf<PlaylistSummary?>(null) }
+    // What the tag editor is editing, and the line the listener is told about what came
+    // of the last thing they asked for.
+    var tagEditor by remember { mutableStateOf<TagEditorTarget?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
     // The queue can be kept, but only once the listener has named it.
     var savingQueue by remember { mutableStateOf(false) }
     // Songs picked out by long-pressing a row. Held as ids rather than songs so a rescan
@@ -227,12 +258,57 @@ private fun MimiAppContent() {
         }
     }
 
+    /**
+     * Writes tags into the files of the songs named, and says whether they stuck.
+     *
+     * Every file is read back afterwards, because a write can be accepted and change
+     * nothing: a format the platform cannot tag, or a file on a volume it cannot write
+     * to. The app must not claim that a file holds tags it does not, so what the
+     * platform reports afterwards is what is believed.
+     */
+    suspend fun writeTags(songs: List<Pair<Track, TagValues>>): Boolean {
+        var allStuck = true
+
+        songs.forEach { (track, values) ->
+            val changed = values.differencesFrom(track.tagValues())
+            if (changed.isEmpty()) return@forEach
+
+            val uri = Uri.parse(track.contentUri)
+            val written = TagWriter.applyTags(context, listOf(uri), values, changed)
+            val actual = if (written) TagWriter.readTags(context, uri) else null
+            val stuck = actual != null && readBackMatches(values, actual, changed)
+
+            if (stuck) {
+                // The file holds the tags now, so the app's own copy of them is no
+                // longer needed and would only get in the way of the next edit.
+                libraryViewModel.clearTagOverride(track.id)
+            } else {
+                allStuck = false
+            }
+        }
+
+        return allStuck
+    }
+
+    /**
+     * The tags of an album's songs once the album's own tags have been changed.
+     *
+     * Only the record's own fields move: the title, the artist and the genre of each
+     * song are the song's own and are left as they are.
+     */
+    fun albumTags(track: Track, edited: TagValues): TagValues = track.tagValues().copy(
+        album = edited.album,
+        albumArtist = edited.albumArtist,
+        year = edited.year,
+    )
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         // A song's details are the same request wherever the song is found, so the answer
         // is handed down rather than threaded through every list that draws a row.
         CompositionLocalProvider(
             LocalTrackActions provides TrackActions(
                 onShowInfo = { navigator.push(Screen.TrackInfo(it.id)) },
+                onEditTags = { tagEditor = TagEditorTarget.Song(it) },
                 isSelected = { it in picked },
                 isSelecting = { picked.isNotEmpty() },
                 onSelect = { picked = picked.toggling(it.id) },
@@ -405,6 +481,9 @@ private fun MimiAppContent() {
                                         navigator.push(Screen.AutoPlaylist(kind))
                                     },
                                     onCreatePlaylist = { creatingPlaylist = true },
+                    onImportPlaylist = { uri ->
+                        libraryViewModel.importPlaylist(uri) { line -> notice = line }
+                    },
                                     onPlayRandomAlbum = {
                                         libraryViewModel.playRandomAlbum { songs ->
                                             playerViewModel.play(songs, 0)
@@ -536,6 +615,17 @@ private fun MimiAppContent() {
                                     },
                                     onBack = navigator::pop,
                                     reveal = screen.reveal,
+                                    onCreateBackup = { uri ->
+                                        libraryViewModel.createBackup(uri) { line -> notice = line }
+                                    },
+                                    onRestoreBackup = { uri ->
+                                        libraryViewModel.restoreBackup(uri) { outcome ->
+                                            notice = when (outcome) {
+                                                is RestoreOutcome.Done -> outcome.report.summary
+                                                is RestoreOutcome.Refused -> outcome.message
+                                            }
+                                        }
+                                    },
                                 )
 
                                 Screen.Statistics -> StatisticsScreen(
@@ -583,6 +673,9 @@ private fun MimiAppContent() {
                                             it.copy(hiddenAlbums = it.hiddenAlbums.addingHiddenName(name))
                                         }
                                         navigator.pop()
+                                    },
+                                    onEditTags = { songs ->
+                                        tagEditor = TagEditorTarget.Album(songs)
                                     },
                                 )
 
@@ -632,6 +725,20 @@ private fun MimiAppContent() {
                                         },
                                         onRename = { renameTarget = playlist },
                                         onDelete = { deleteTarget = playlist },
+                                        onExport = {
+                                            val folder = settings.playlistExportPath
+                                            if (folder.isBlank()) {
+                                                notice = "Choose a folder to export to first: " +
+                                                    "Settings, then Playlists, then " +
+                                                    "Playlist export path."
+                                            } else {
+                                                libraryViewModel.exportPlaylist(
+                                                    screen.playlistId,
+                                                    playlist?.name ?: "Playlist",
+                                                    folder,
+                                                ) { line -> notice = line }
+                                            }
+                                        },
                                     )
                                 }
 
@@ -714,6 +821,7 @@ private fun MimiAppContent() {
                                         onAddToQueue = { track?.let(playerViewModel::addToQueue) },
                                         onAddToPlaylist = { track?.let { addTarget = it } },
                                         onShare = { track?.let(::share) },
+                                        onEditTags = { track?.let { tagEditor = TagEditorTarget.Song(it) } },
                                         onGoToAlbum = {
                                             track?.let {
                                                 navigator.pop()
@@ -883,6 +991,111 @@ private fun MimiAppContent() {
                     onDismiss = { deleteTarget = null },
                 )
             }
+
+            tagEditor?.let { target ->
+                when (target) {
+                    is TagEditorTarget.Song -> {
+                        val track = target.track
+                        TagEditorDialog(
+                            heading = "Edit the tags",
+                            initial = track.tagValues(),
+                            fields = listOf(
+                                TagField.TITLE,
+                                TagField.ARTIST,
+                                TagField.ALBUM,
+                                TagField.ALBUM_ARTIST,
+                                TagField.YEAR,
+                                TagField.TRACK_NUMBER,
+                                TagField.GENRE,
+                            ),
+                            uris = listOf(Uri.parse(track.contentUri)),
+                            onApply = { values -> writeTags(listOf(track to values)) },
+                            onKeep = { values ->
+                                libraryViewModel.keepTagOverride(track.id, values)
+                            },
+                            onDismiss = { tagEditor = null },
+                            onFinished = { outcome ->
+                                tagEditor = null
+                                notice = when (outcome) {
+                                    is TagEditOutcome.Written ->
+                                        "The tags were written into the file."
+                                    is TagEditOutcome.KeptInLibrary ->
+                                        "The file could not be written to, so the tags are " +
+                                            "kept in the app's library."
+                                    TagEditOutcome.Refused ->
+                                        "The write was not allowed, so nothing was changed."
+                                    TagEditOutcome.Unchanged -> null
+                                }
+                                // The library is rebuilt so that the songs, the albums and
+                                // the lists all show what was just saved.
+                                libraryViewModel.refresh(force = true)
+                            },
+                        )
+                    }
+
+                    is TagEditorTarget.Album -> {
+                        val songs = target.tracks
+                        val first = songs.firstOrNull()
+                        if (first != null) {
+                            TagEditorDialog(
+                                heading = "Edit the album tags",
+                                initial = TagValues(
+                                    // The title is not one of the fields an album has, but
+                                    // the editor needs a name to open on, so the first
+                                    // song's own is used and left alone.
+                                    title = first.title,
+                                    artist = first.artist.orEmpty(),
+                                    album = first.album.orEmpty(),
+                                    albumArtist = first.albumArtist.orEmpty(),
+                                    year = first.year?.toString().orEmpty(),
+                                    trackNumber = "",
+                                    genre = "",
+                                ),
+                                fields = listOf(
+                                    TagField.ALBUM,
+                                    TagField.ALBUM_ARTIST,
+                                    TagField.YEAR,
+                                ),
+                                uris = songs.map { Uri.parse(it.contentUri) },
+                                onApply = { edited ->
+                                    writeTags(songs.map { song -> song to albumTags(song, edited) })
+                                },
+                                onKeep = { edited ->
+                                    songs.forEach { song ->
+                                        libraryViewModel.keepTagOverride(
+                                            song.id,
+                                            albumTags(song, edited),
+                                        )
+                                    }
+                                },
+                                onDismiss = { tagEditor = null },
+                                onFinished = { outcome ->
+                                    tagEditor = null
+                                    notice = when (outcome) {
+                                        is TagEditOutcome.Written ->
+                                            "The album's tags were written into its files."
+                                        is TagEditOutcome.KeptInLibrary ->
+                                            "The files could not be written to, so the " +
+                                                "album's tags are kept in the app's library."
+                                        TagEditOutcome.Refused ->
+                                            "The write was not allowed, so nothing was changed."
+                                        TagEditOutcome.Unchanged -> null
+                                    }
+                                    libraryViewModel.refresh(force = true)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            notice?.let { line ->
+                MessageDialog(
+                    title = "Done",
+                    message = line,
+                    onDismiss = { notice = null },
+                )
+            }
         }
         }
     }
@@ -916,6 +1129,7 @@ private fun LibraryHome(
     onOpenPlaylist: (PlaylistSummary) -> Unit,
     onOpenAutoPlaylist: (AutoPlaylistKind) -> Unit,
     onCreatePlaylist: () -> Unit,
+    onImportPlaylist: (Uri) -> Unit,
     onPlayRandomAlbum: () -> Unit,
     onOpenScreen: (Screen) -> Unit,
 ) {
@@ -993,6 +1207,7 @@ private fun LibraryHome(
                     onPlaylistClick = onOpenPlaylist,
                     onOpenAutoPlaylist = onOpenAutoPlaylist,
                     onCreate = onCreatePlaylist,
+                    onImportFile = onImportPlaylist,
                 )
             }
 
@@ -1055,3 +1270,11 @@ private fun tabIcon(tab: BottomTabId): ImageVector = when (tab) {
     BottomTabId.LOVED -> Lucide.Heart
     BottomTabId.SEARCH -> Lucide.Search
 }
+
+/**
+ * How long the app waits for the song to come back before it gives up on the player.
+ *
+ * The session is put back from the database when the app opens, which takes a moment,
+ * and a tap on a widget should not land on an empty screen while it happens.
+ */
+private const val PLAYER_WAIT_MS = 2_000L

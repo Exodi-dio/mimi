@@ -172,7 +172,13 @@ data class Settings(
     val showVolumeSlider: Boolean = false,
     /** Put previous and next in the mini player rather than next alone. */
     val extraControls: Boolean = false,
-    /** The folder exported playlists would be written to, which nothing has chosen yet. */
+    /**
+     * The folder playlists are exported to.
+     *
+     * Held as the address the system gave when the listener chose a folder, because that
+     * is the only way to reach a folder on a modern phone without asking for a
+     * permission over the whole of storage.
+     */
     val playlistExportPath: String = "",
     /** How far back the automatic "Last added" list reaches. */
     val lastAddedRange: RecentRange = RecentRange.PAST_THREE_MONTHS,
@@ -182,7 +188,13 @@ data class Settings(
     val automaticBackups: Boolean = false,
     /** How often an automatic backup would be written. */
     val backupFrequency: String = BACKUP_DAILY,
-    /** The folder an automatic backup would be written to. */
+    /**
+     * The folder automatic backups are written to.
+     *
+     * Kept apart from the export folder because the two are chosen separately and mean
+     * different things, and because a backup that went to the wrong place would be
+     * worse than no backup at all.
+     */
     val backupFolder: String = "",
 ) {
     /** Every curve on offer: the ones that came with the app, then the listener's own. */
@@ -250,12 +262,26 @@ data class Settings(
 
         const val BACKUP_DAILY = "Daily"
 
+        const val BACKUP_WEEKLY = "Weekly"
+
+        const val BACKUP_MONTHLY = "Monthly"
+
         /**
          * Every key is under one prefix so the settings can be read with a single query
          * that cannot be disturbed by anything else stored in the same table — the playback
          * session is rewritten every few seconds, and the settings must not re-emit with it.
          */
         const val PREFIX = "setting."
+
+        /**
+         * The folders the listener chose.
+         *
+         * They are named apart from the other keys because they are the two settings that
+         * belong to one device: a folder chosen on a phone means nothing on another one,
+         * so a backup carries them and a restore leaves them alone.
+         */
+        const val PLAYLIST_EXPORT_PATH_KEY = "setting.playlist_export_path"
+        const val BACKUP_FOLDER_KEY = "setting.backup_folder"
 
         private const val SCAN_ON_LAUNCH = "setting.scan_on_launch"
         private const val WATCH_FOR_CHANGES = "setting.watch_for_changes"
@@ -312,12 +338,12 @@ data class Settings(
         private const val SHOW_SONG_INFO = "setting.show_song_info"
         private const val SHOW_VOLUME_SLIDER = "setting.show_volume_slider"
         private const val EXTRA_CONTROLS = "setting.extra_controls"
-        private const val PLAYLIST_EXPORT_PATH = "setting.playlist_export_path"
+        private const val PLAYLIST_EXPORT_PATH = PLAYLIST_EXPORT_PATH_KEY
         private const val LAST_ADDED_RANGE = "setting.last_added_range"
         private const val RECENTLY_PLAYED_RANGE = "setting.recently_played_range"
         private const val AUTOMATIC_BACKUPS = "setting.automatic_backups"
         private const val BACKUP_FREQUENCY = "setting.backup_frequency"
-        private const val BACKUP_FOLDER = "setting.backup_folder"
+        private const val BACKUP_FOLDER = BACKUP_FOLDER_KEY
 
         /**
          * The two keys the settings used to be stored under.

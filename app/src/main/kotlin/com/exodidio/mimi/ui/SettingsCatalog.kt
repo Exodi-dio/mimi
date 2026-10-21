@@ -647,9 +647,10 @@ val settingsCatalog: List<SettingEntry> = listOf(
         group = SettingsGroupId.BACKUP,
         section = "AUTOMATIC",
         title = "About automatic backups",
-        subtitle = "No backup is written on a schedule yet. The switch, the frequency and " +
-            "the folder are remembered for a later build, and nothing leaves the device.",
-        keywords = listOf("automatic", "backup", "schedule", "not applied", "folder"),
+        subtitle = "A backup is written when the app opens and the chosen interval has " +
+            "passed. Nothing is written until a folder has been chosen, and the folder " +
+            "is the only place a backup goes.",
+        keywords = listOf("automatic", "backup", "schedule", "folder", "interval"),
         note = true,
     ),
 

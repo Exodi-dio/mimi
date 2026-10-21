@@ -88,12 +88,18 @@ object MediaStoreScanner {
      *
      * Folders the listener has excluded are dropped here rather than later, so an excluded
      * folder costs a comparison per row instead of a whole song built and then thrown away.
+     *
+     * The corrections the app holds for songs whose files could not be written to are
+     * applied here rather than where the lists are drawn, because the cache is the one
+     * place every list reads from: a correction applied there is seen by the songs list,
+     * by the albums, by the artists and by the search at once.
      */
     suspend fun scan(
         context: Context,
         minDurationMs: Long = 0L,
         maxDurationMs: Long = 0L,
         excludedFolders: Collection<String> = emptyList(),
+        overrides: Map<Long, TagOverride> = emptyMap(),
     ): List<Track> =
         withContext(Dispatchers.IO) {
             val found = runCatching {
@@ -113,7 +119,7 @@ object MediaStoreScanner {
         val genres = genresByTrack(context)
 
         rows.map { row ->
-            Track(
+            val track = Track(
                 id = row.id,
                 title = row.title,
                 artist = row.artist,
@@ -135,7 +141,43 @@ object MediaStoreScanner {
                 fileName = row.fileName,
                 folder = row.folder,
             )
+            track.withOverride(overrides[row.id])
         }
+    }
+
+    /**
+     * Where the device says each song's file is, keyed by the song's id.
+     *
+     * A playlist file holds paths rather than the addresses the media provider gives, so
+     * writing one out and reading one in both need to know the path of a song. The
+     * provider is asked for it in its own query because the column is no longer part of
+     * the scan: a device that will not give it leaves the playlists without paths rather
+     * than making the whole scan fail.
+     */
+    @Suppress("DEPRECATION")
+    suspend fun pathsById(context: Context): Map<Long, String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val paths = HashMap<Long, String>()
+            context.contentResolver
+                .query(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DATA),
+                    null,
+                    null,
+                    null,
+                )
+                ?.use { cursor ->
+                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                    val pathColumn = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                    if (pathColumn >= 0) {
+                        while (cursor.moveToNext()) {
+                            val path = cursor.getString(pathColumn)
+                            if (!path.isNullOrBlank()) paths[cursor.getLong(idColumn)] = path
+                        }
+                    }
+                }
+            paths
+        }.getOrDefault(emptyMap())
     }
 
     private fun queryRows(

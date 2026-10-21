@@ -205,6 +205,10 @@ fun TrackRow(
                 menuOpen = false
                 actions.onShowInfo(track)
             }
+            MenuAction("Edit tags", Lucide.Pencil) {
+                menuOpen = false
+                actions.onEditTags(track)
+            }
             if (onPlayNext != null) {
                 MenuAction("Play next", Lucide.ListStart) {
                     menuOpen = false

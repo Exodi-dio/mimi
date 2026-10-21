@@ -219,6 +219,10 @@ interface TrackDao {
         """
     )
     fun observeFolderTracks(folder: String): Flow<List<Track>>
+
+    /** The whole library, read once rather than watched, for a backup being written. */
+    @Query("SELECT * FROM tracks")
+    suspend fun all(): List<Track>
 }
 
 @Dao
@@ -312,8 +316,23 @@ interface PlaylistDao {
     )
     fun observePlaylistTracks(playlistId: Long): Flow<List<Track>>
 
+    /** The same songs, read once rather than watched, for a playlist being written out. */
+    @Query(
+        """
+        SELECT tracks.* FROM tracks
+        INNER JOIN playlist_entries ON playlist_entries.track_id = tracks.id
+        WHERE playlist_entries.playlist_id = :playlistId
+        ORDER BY playlist_entries.position ASC
+        """
+    )
+    suspend fun playlistTracks(playlistId: Long): List<Track>
+
     @Insert
     suspend fun insertPlaylist(playlist: Playlist): Long
+
+    /** The playlists as they are, read once rather than watched, for a backup. */
+    @Query("SELECT * FROM playlists ORDER BY id ASC")
+    suspend fun all(): List<Playlist>
 
     @Query("UPDATE playlists SET name = :name WHERE id = :playlistId")
     suspend fun rename(playlistId: Long, name: String)
@@ -410,6 +429,25 @@ interface PlayStatDao {
     /** History for files that are no longer on the device. */
     @Query("DELETE FROM play_stats WHERE track_id NOT IN (SELECT id FROM tracks)")
     suspend fun prune()
+
+    /** The whole history, read once rather than watched, for a backup being written. */
+    @Query("SELECT track_id, play_count, skip_count, last_played_at FROM play_stats")
+    suspend fun all(): List<PlayStat>
+
+    /** The history of one song, read once so a restore can merge into it. */
+    @Query(
+        """
+        SELECT track_id, play_count, skip_count, last_played_at
+        FROM play_stats
+        WHERE track_id = :trackId
+        LIMIT 1
+        """
+    )
+    suspend fun get(trackId: Long): PlayStat?
+
+    /** A history written whole, as a restore writes it. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun put(stat: PlayStat)
 }
 
 /**
@@ -455,4 +493,44 @@ interface ListenDayDao {
     /** History for files that are no longer on the device, pruned with the files themselves. */
     @Query("DELETE FROM listen_days WHERE track_id NOT IN (SELECT id FROM tracks)")
     suspend fun prune()
+
+    /** The whole listening time, read once rather than watched, for a backup. */
+    @Query("SELECT id, track_id, day, listened_ms, plays FROM listen_days ORDER BY id ASC")
+    suspend fun all(): List<ListenDay>
+
+    /** One song's listening on one day, read once so a restore can merge into it. */
+    @Query(
+        """
+        SELECT id, track_id, day, listened_ms, plays
+        FROM listen_days
+        WHERE track_id = :trackId AND day = :day
+        LIMIT 1
+        """
+    )
+    suspend fun get(trackId: Long, day: String): ListenDay?
+
+    /** A day's listening written whole, as a restore writes it. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun put(day: ListenDay)
+}
+
+/**
+ * The corrections the app holds for songs whose files could not be written to.
+ *
+ * A correction is only ever read once per scan, when the library is rebuilt, so there
+ * is nothing to watch here and nothing that would need to be watched.
+ */
+@Dao
+interface TagOverrideDao {
+
+    /** Every correction the app is holding. */
+    @Query("SELECT * FROM tag_overrides")
+    suspend fun all(): List<TagOverride>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun put(override: TagOverride)
+
+    /** The correction of one song is dropped when its file holds the right tags again. */
+    @Query("DELETE FROM tag_overrides WHERE track_id = :trackId")
+    suspend fun remove(trackId: Long)
 }

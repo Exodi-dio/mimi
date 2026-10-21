@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Shuffle
 import com.composables.icons.lucide.Trash2
 import com.exodidio.mimi.library.Track
@@ -53,6 +54,7 @@ fun PlaylistDetailScreen(
     onMove: (trackId: Long, toIndex: Int) -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onExport: () -> Unit = {},
     playingMediaId: String? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -65,6 +67,13 @@ fun PlaylistDetailScreen(
             subtitle = songSummaryLabel(tracks.size, totalDurationMs(tracks)),
             onBack = onBack,
             trailing = {
+                IconButton(onClick = onExport) {
+                    Icon(
+                        imageVector = Lucide.Save,
+                        contentDescription = "Export this playlist to a file",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 IconButton(onClick = onRename) {
                     Icon(
                         imageVector = Lucide.Pencil,

@@ -25,6 +25,7 @@ class LibraryRepository(
     private val playStatDao = database.playStatDao()
 
     private val listenDayDao = database.listenDayDao()
+    private val tagOverrideDao = database.tagOverrideDao()
 
     val tracks: Flow<List<Track>> = trackDao.observeAll()
 
@@ -178,6 +179,10 @@ class LibraryRepository(
 
     fun tracksInPlaylist(playlistId: Long): Flow<List<Track>> = playlistDao.observePlaylistTracks(playlistId)
 
+    /** The songs of a playlist, read once rather than watched, for a file being written. */
+    suspend fun tracksInPlaylistNow(playlistId: Long): List<Track> =
+        playlistDao.playlistTracks(playlistId)
+
     suspend fun setLoved(trackId: Long, loved: Boolean) {
         if (loved) {
             favoriteDao.add(Favorite(trackId = trackId, addedAt = System.currentTimeMillis()))
@@ -243,6 +248,264 @@ class LibraryRepository(
             order.add(to, trackId)
             order.forEachIndexed { index, id -> playlistDao.setPosition(playlistId, id, index) }
         }
+    }
+
+    /**
+     * The library's songs as a playlist file would name them.
+     *
+     * A playlist file holds paths, and the library holds the addresses the media
+     * provider gave, so the paths are asked of the provider again here. A device that
+     * will not give them still has a library: the files simply have no path and a
+     * playlist written from them names them by the file itself.
+     */
+    suspend fun libraryFiles(): List<LibraryFile> {
+        val tracks = trackDao.all()
+        val paths = MediaStoreScanner.pathsById(context)
+        return tracks.map { track ->
+            LibraryFile(
+                trackId = track.id,
+                contentUri = track.contentUri,
+                path = paths[track.id],
+                fileName = track.fileName,
+            )
+        }
+    }
+
+    /**
+     * Makes a playlist out of the songs of a playlist file.
+     *
+     * The songs are added in the order the file listed them, and a song the playlist
+     * already holds is left alone rather than being listed twice.
+     */
+    suspend fun importPlaylist(name: String, songs: List<MatchedSong>): Long {
+        val playlistId = createPlaylist(name)
+        songs.forEach { song -> addToPlaylist(playlistId, song.trackId) }
+        return playlistId
+    }
+
+    /**
+     * Keeps a correction for a song whose file could not be written to.
+     *
+     * The correction is the whole set of tags rather than the fields that changed, so
+     * that a field the listener emptied stays empty.
+     */
+    suspend fun keepTagOverride(trackId: Long, values: TagValues) {
+        tagOverrideDao.put(tagOverrideFor(trackId, values, System.currentTimeMillis()))
+    }
+
+    /**
+     * Forgets a correction, which is what happens once the file itself holds the tags.
+     */
+    suspend fun clearTagOverride(trackId: Long) {
+        tagOverrideDao.remove(trackId)
+    }
+
+    /**
+     * What a backup of this library holds.
+     *
+     * The playlists carry the songs they were given, the settings are the rows they are
+     * stored as, and the history is how much each song has been played and heard. The
+     * songs themselves are not in it: they are files on the device, and a backup that
+     * copied them would be a copy of the music rather than of the library.
+     */
+    suspend fun buildBackupData(createdAt: Long): BackupData {
+        val tracks = trackDao.all()
+        val byId = tracks.associateBy { it.id }
+
+        val playlists = playlistDao.all().map { playlist ->
+            val entries = playlistDao.entryTrackIds(playlist.id).mapIndexed { index, trackId ->
+                val track = byId[trackId] ?: return@mapIndexed null
+                BackupEntry(
+                    contentUri = track.contentUri,
+                    position = index,
+                    fileName = track.fileName,
+                )
+            }.filterNotNull()
+            BackupPlaylist(name = playlist.name, entries = entries)
+        }
+
+        val history = playStatDao.all().mapNotNull { stat ->
+            val track = byId[stat.trackId] ?: return@mapNotNull null
+            BackupHistory(
+                contentUri = track.contentUri,
+                playCount = stat.playCount,
+                skipCount = stat.skipCount,
+                lastPlayedAt = stat.lastPlayedAt,
+            )
+        }
+
+        val days = listenDayDao.all().mapNotNull { day ->
+            val track = byId[day.trackId] ?: return@mapNotNull null
+            BackupListenDay(
+                contentUri = track.contentUri,
+                day = day.day,
+                listenedMs = day.listenedMs,
+                plays = day.plays,
+            )
+        }
+
+        return BackupData(
+            createdAt = createdAt,
+            settings = metaDao.getAllWithPrefix(Settings.PREFIX),
+            playlists = playlists,
+            history = history,
+            listenDays = days,
+        )
+    }
+
+    /**
+     * Merges a backup into the library.
+     *
+     * Nothing is thrown away: a playlist that is already here is added to rather than
+     * replaced, a setting is written over the value it now holds, and a play count keeps
+     * whichever of the two numbers is larger. What cannot be applied is counted and
+     * reported, because a song the backup names may simply not be on this device.
+     */
+    suspend fun restoreBackup(backup: BackupData): RestoreReport = database.withTransaction {
+        val tracks = trackDao.all()
+        val byUri = tracks.associateBy { it.contentUri }
+        val byName = tracks
+            .filter { !it.fileName.isNullOrBlank() }
+            .groupBy { it.fileName!!.lowercase() }
+
+        /**
+         * The song a backup line is about.
+         *
+         * The address the provider gave is tried first, then the number at the end of it,
+         * which is the same song on the device the backup was made on, and finally the
+         * name of the file, which is what is left when the two devices number their songs
+         * differently.
+         */
+        fun findTrack(contentUri: String, fileName: String?): Track? {
+            byUri[contentUri]?.let { return it }
+            val id = contentUri.substringAfterLast('/').toLongOrNull()
+            if (id != null) tracks.firstOrNull { it.id == id }?.let { return it }
+            if (!fileName.isNullOrBlank()) {
+                byName[fileName.lowercase()]?.singleOrNull()?.let { return it }
+            }
+            return null
+        }
+
+        val existingPlaylists = playlistDao.all()
+        var playlistsCreated = 0
+        var playlistsMerged = 0
+        var songsRestored = 0
+        var songsSkipped = 0
+
+        backup.playlists.forEach { backed ->
+            val existing = existingPlaylists.firstOrNull {
+                it.name.equals(backed.name, ignoreCase = true)
+            }
+            val playlistId = if (existing == null) {
+                playlistsCreated += 1
+                playlistDao.insertPlaylist(
+                    Playlist(name = backed.name, createdAt = backup.createdAt)
+                )
+            } else {
+                playlistsMerged += 1
+                existing.id
+            }
+
+            backed.entries.forEach { entry ->
+                val track = findTrack(entry.contentUri, entry.fileName)
+                if (track == null) {
+                    songsSkipped += 1
+                    return@forEach
+                }
+                if (playlistDao.entryCount(playlistId, track.id) == 0) {
+                    playlistDao.insertEntry(
+                        PlaylistEntry(
+                            playlistId = playlistId,
+                            trackId = track.id,
+                            position = playlistDao.nextPosition(playlistId),
+                        )
+                    )
+                    songsRestored += 1
+                }
+            }
+        }
+
+        var settingsApplied = 0
+        var settingsSkipped = 0
+        backup.settings.forEach { entry ->
+            // The folders belong to the device the backup was made on, so putting them
+            // back would point the app at a folder that is not there.
+            if (entry.key == Settings.PLAYLIST_EXPORT_PATH_KEY ||
+                entry.key == Settings.BACKUP_FOLDER_KEY
+            ) {
+                settingsSkipped += 1
+                return@forEach
+            }
+            metaDao.put(entry)
+            settingsApplied += 1
+        }
+
+        var historyRestored = 0
+        backup.history.forEach { backed ->
+            val track = findTrack(backed.contentUri, null) ?: return@forEach
+            val current = playStatDao.get(track.id)
+            val merged = if (current == null) {
+                backed
+            } else {
+                backed.copy(
+                    playCount = maxOf(current.playCount, backed.playCount),
+                    skipCount = maxOf(current.skipCount, backed.skipCount),
+                    lastPlayedAt = maxOf(
+                        current.lastPlayedAt ?: 0L,
+                        backed.lastPlayedAt ?: 0L,
+                    ).takeIf { it > 0L },
+                )
+            }
+            playStatDao.put(
+                PlayStat(
+                    trackId = track.id,
+                    playCount = merged.playCount,
+                    skipCount = merged.skipCount,
+                    lastPlayedAt = merged.lastPlayedAt,
+                )
+            )
+            historyRestored += 1
+        }
+
+        var daysRestored = 0
+        backup.listenDays.forEach { backed ->
+            val track = findTrack(backed.contentUri, null) ?: return@forEach
+            val current = listenDayDao.get(track.id, backed.day)
+            listenDayDao.put(
+                ListenDay(
+                    id = current?.id ?: 0L,
+                    trackId = track.id,
+                    day = backed.day,
+                    listenedMs = maxOf(current?.listenedMs ?: 0L, backed.listenedMs),
+                    plays = maxOf(current?.plays ?: 0, backed.plays),
+                )
+            )
+            daysRestored += 1
+        }
+
+        RestoreReport(
+            playlistsCreated = playlistsCreated,
+            playlistsMerged = playlistsMerged,
+            songsRestored = songsRestored,
+            songsSkipped = songsSkipped,
+            settingsApplied = settingsApplied,
+            settingsSkipped = settingsSkipped,
+            historyRestored = historyRestored,
+            daysRestored = daysRestored,
+        )
+    }
+
+    /**
+     * When the last automatic backup was written, or zero when there has not been one.
+     *
+     * The time is kept beside the settings rather than in them, because it is a fact
+     * about the backup folder rather than a choice the listener made.
+     */
+    suspend fun lastBackupAt(): Long = metaDao.get(KEY_LAST_BACKUP)?.toLongOrNull() ?: 0L
+
+    /** Remembers that a backup was written, so the next one waits for its turn. */
+    suspend fun noteBackupWritten(at: Long) {
+        metaDao.put(MetaEntry(KEY_LAST_BACKUP, at.toString()))
     }
 
     /**
@@ -338,11 +601,16 @@ class LibraryRepository(
 
         val previousIds = trackDao.ids()
         val chosen = Settings.from(metaDao.getAllWithPrefix(Settings.PREFIX))
+        // The corrections the app holds for songs whose files could not be written to are
+        // read before the scan, so the rows the scan builds already carry them and every
+        // list in the app sees the corrected tags at once.
+        val overrides = tagOverrideDao.all().associateBy { it.trackId }
         val scanned = MediaStoreScanner.scan(
             context = context,
             minDurationMs = chosen.minDurationMs,
             maxDurationMs = chosen.maxDurationMs,
             excludedFolders = chosen.excludedFolders,
+            overrides = overrides,
         )
         val foundIds = scanned.mapTo(HashSet()) { it.id }
         val dropped = previousIds.count { it !in foundIds }
@@ -401,6 +669,9 @@ class LibraryRepository(
         const val KEY_LAST_POSITION = "playback_position_ms"
         const val KEY_SHUFFLE = "playback_shuffle"
         const val KEY_REPEAT = "playback_repeat"
+
+        /** When the last automatic backup was written. */
+        const val KEY_LAST_BACKUP = "backup.last_at"
     }
 }
 

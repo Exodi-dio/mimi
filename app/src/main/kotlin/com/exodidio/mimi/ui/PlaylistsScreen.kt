@@ -1,5 +1,8 @@
 package com.exodidio.mimi.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +40,9 @@ import com.exodidio.mimi.library.PlaylistSummary
  * "Last added" and "Recently played" are not playlists in the database: they are views
  * whose period is chosen in settings, so they are drawn apart from the saved ones rather
  * than being able to look like something that can be renamed or deleted.
+ *
+ * Importing is here rather than in the settings because it is something that is done
+ * rather than something that is chosen: the listener picks a file and a playlist appears.
  */
 @Composable
 fun PlaylistsScreen(
@@ -45,19 +52,40 @@ fun PlaylistsScreen(
     onPlaylistClick: (PlaylistSummary) -> Unit,
     onOpenAutoPlaylist: (AutoPlaylistKind) -> Unit,
     onCreate: () -> Unit,
+    onImportFile: (Uri) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val importFile = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) onImportFile(uri)
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
             title = "Playlists",
             subtitle = playlistCountLabel(playlists.size),
             trailing = {
-                IconButton(onClick = onCreate) {
-                    Icon(
-                        imageVector = Lucide.Plus,
-                        contentDescription = "New playlist",
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
+                Row {
+                    TextButton(onClick = {
+                        importFile.launch(
+                            arrayOf(
+                                "audio/x-mpegurl",
+                                "application/vnd.apple.mpegurl",
+                                "text/plain",
+                                "*/*",
+                            )
+                        )
+                    }) {
+                        Text("Import")
+                    }
+                    IconButton(onClick = onCreate) {
+                        Icon(
+                            imageVector = Lucide.Plus,
+                            contentDescription = "New playlist",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             },
         )

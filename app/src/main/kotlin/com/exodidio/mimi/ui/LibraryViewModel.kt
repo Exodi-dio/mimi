@@ -1,30 +1,48 @@
 package com.exodidio.mimi.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.exodidio.mimi.MimiApplication
 import com.exodidio.mimi.library.AlbumSummary
 import com.exodidio.mimi.library.ArtistSummary
+import com.exodidio.mimi.library.BackupFile
 import com.exodidio.mimi.library.ComposerSummary
 import com.exodidio.mimi.library.FolderSummary
 import com.exodidio.mimi.library.GenreSummary
 import com.exodidio.mimi.library.LibraryChangeObserver
 import com.exodidio.mimi.library.ListenDay
+import com.exodidio.mimi.library.M3uSong
 import com.exodidio.mimi.library.PlayStat
 import com.exodidio.mimi.library.PlaylistSummary
+import com.exodidio.mimi.library.RestoreOutcome
+import com.exodidio.mimi.library.Settings
+import com.exodidio.mimi.library.TagValues
 import com.exodidio.mimi.library.Track
 import com.exodidio.mimi.library.YearSummary
 import com.exodidio.mimi.library.albumSummaries
 import com.exodidio.mimi.library.artistSummaries
+import com.exodidio.mimi.library.backupFileName
+import com.exodidio.mimi.library.backupIntervalMillis
+import com.exodidio.mimi.library.buildBackup
+import com.exodidio.mimi.library.buildM3u
 import com.exodidio.mimi.library.comparator
 import com.exodidio.mimi.library.composerSummaries
+import com.exodidio.mimi.library.documentDisplayName
 import com.exodidio.mimi.library.folderSummaries
 import com.exodidio.mimi.library.genreSummaries
 import com.exodidio.mimi.library.hiddenNames
 import com.exodidio.mimi.library.isExcludedFolder
 import com.exodidio.mimi.library.isWithinDurationRange
+import com.exodidio.mimi.library.matchM3uEntries
+import com.exodidio.mimi.library.parseBackup
+import com.exodidio.mimi.library.parseM3u
+import com.exodidio.mimi.library.readDocumentText
+import com.exodidio.mimi.library.safeFileName
 import com.exodidio.mimi.library.tracksWithoutHidden
+import com.exodidio.mimi.library.writeDocumentInTree
+import com.exodidio.mimi.library.writeDocumentText
 import com.exodidio.mimi.library.yearSummaries
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -369,6 +387,167 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { library.moveInPlaylist(playlistId, trackId, toIndex) }
     }
 
+    /**
+     * Makes a playlist out of a playlist file the listener picked.
+     *
+     * The songs are matched against the library by the path the file names and, failing
+     * that, by the name of the file, and the ones that are not here are counted rather
+     * than quietly left out: a playlist that came back short should say so.
+     */
+    fun importPlaylist(uri: Uri, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val text = readDocumentText(application, uri)
+            if (text == null) {
+                onDone("That file could not be read.")
+                return@launch
+            }
+
+            val match = matchM3uEntries(parseM3u(text), library.libraryFiles())
+            if (match.matched.isEmpty()) {
+                onDone("None of the songs in that file are in your library.")
+                return@launch
+            }
+
+            val name = documentDisplayName(application, uri)
+                ?.substringBeforeLast('.')
+                ?.takeIf { it.isNotBlank() }
+                ?: "Imported playlist"
+            library.importPlaylist(name, match.matched)
+
+            val skipped = if (match.skipped == 0) {
+                ""
+            } else {
+                " ${match.skipped} were not in your library."
+            }
+            onDone("Added ${match.matched.size} songs to \u201c$name\u201d.$skipped")
+        }
+    }
+
+    /**
+     * Writes a playlist out as a file in the folder the listener chose.
+     *
+     * The file holds the paths of the songs with their titles and lengths, which is what
+     * another player reads. A device that will not say where its songs are cannot produce
+     * such a file, and says so rather than writing a file of nothing.
+     */
+    fun exportPlaylist(playlistId: Long, name: String, folder: String, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val tracks = library.tracksInPlaylistNow(playlistId)
+            val files = library.libraryFiles().associateBy { it.trackId }
+
+            val songs = tracks.mapNotNull { track ->
+                val path = files[track.id]?.path ?: return@mapNotNull null
+                M3uSong(
+                    path = path,
+                    title = track.title,
+                    artist = track.artist,
+                    durationMs = track.durationMs,
+                )
+            }
+
+            if (songs.isEmpty()) {
+                onDone("The device would not say where the songs are, so no file was written.")
+                return@launch
+            }
+
+            val fileName = "${safeFileName(name)}.m3u"
+            val written = writeDocumentInTree(application, folder, fileName, buildM3u(songs))
+            onDone(
+                if (written != null) {
+                    "Exported ${songs.size} songs to $fileName."
+                } else {
+                    "The playlist could not be written to that folder."
+                }
+            )
+        }
+    }
+
+    /**
+     * Writes a backup into the document the listener chose.
+     *
+     * The backup holds the playlists, the settings and the listening history, and none of
+     * the music: the songs are files on the device and stay there.
+     */
+    fun createBackup(uri: Uri, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val text = buildBackup(library.buildBackupData(System.currentTimeMillis()))
+            val written = writeDocumentText(application, uri, text)
+            onDone(
+                if (written) {
+                    "Backup saved."
+                } else {
+                    "The backup could not be written to that file."
+                }
+            )
+        }
+    }
+
+    /**
+     * Reads a backup file and merges it into the library.
+     *
+     * A file that cannot be trusted is refused with the reason, because a restore that
+     * quietly did nothing looks exactly like one that worked.
+     */
+    fun restoreBackup(uri: Uri, onDone: (RestoreOutcome) -> Unit) {
+        viewModelScope.launch {
+            val text = readDocumentText(application, uri)
+            if (text == null) {
+                onDone(RestoreOutcome.Refused("That file could not be read."))
+                return@launch
+            }
+
+            onDone(
+                when (val file = parseBackup(text)) {
+                    is BackupFile.Read -> RestoreOutcome.Done(library.restoreBackup(file.backup))
+                    is BackupFile.UnsupportedVersion -> RestoreOutcome.Refused(
+                        "That backup was made by a newer version of the app."
+                    )
+                    is BackupFile.Truncated -> RestoreOutcome.Refused(
+                        "That backup is incomplete, so it was not restored."
+                    )
+                    is BackupFile.Malformed -> RestoreOutcome.Refused(file.reason)
+                }
+            )
+        }
+    }
+
+    /**
+     * Writes an automatic backup when the one that was due is due.
+     *
+     * The time of the last one is kept beside the settings, so opening the app twice in
+     * a day does not write two backups. Nothing is written when no folder has been
+     * chosen: a backup that lands in the app's own storage is not one the listener can
+     * find again.
+     */
+    private fun writeAutomaticBackupWhenDue(chosen: Settings) {
+        if (!chosen.automaticBackups) return
+        val folder = chosen.backupFolder
+        if (folder.isBlank()) return
+
+        val now = System.currentTimeMillis()
+        if (now - library.lastBackupAt() < backupIntervalMillis(chosen.backupFrequency)) return
+
+        viewModelScope.launch {
+            val text = buildBackup(library.buildBackupData(now))
+            val written = writeDocumentInTree(application, folder, backupFileName(now), text)
+            if (written != null) library.noteBackupWritten(now)
+        }
+    }
+
+    /**
+     * Keeps the corrected tags of a song whose file could not be written to.
+     */
+    fun keepTagOverride(trackId: Long, values: TagValues) {
+        viewModelScope.launch { library.keepTagOverride(trackId, values) }
+    }
+
+    /**
+     * Forgets a correction, which is what happens once the file itself holds the tags.
+     */
+    fun clearTagOverride(trackId: Long) {
+        viewModelScope.launch { library.clearTagOverride(trackId) }
+    }
+
     private val _scanning = MutableStateFlow(false)
     val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
 
@@ -413,6 +592,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     previous != filter -> refresh(force = true)
                 }
                 if (chosen.watchForChanges) changeObserver.start() else changeObserver.stop()
+                // The automatic backup is looked at here rather than on a timer of its
+                // own, because the app is only ever running while somebody is using it,
+                // and this is the moment the app is open and the settings are known.
+                writeAutomaticBackupWhenDue(chosen)
             }
         }
     }
