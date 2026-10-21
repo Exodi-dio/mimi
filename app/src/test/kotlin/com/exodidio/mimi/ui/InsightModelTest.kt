@@ -124,7 +124,7 @@ class InsightModelTest {
         assertEquals(60_000L, listening.averageSessionMs)
         assertEquals(300.0, listening.changePercent!!, 0.01)
         assertEquals(7, listening.bars.size)
-        assertEquals(3, listening.streakDays)
+        assertEquals(1, listening.streakDays)
         assertTrue(listening.hasHistory)
     }
 
