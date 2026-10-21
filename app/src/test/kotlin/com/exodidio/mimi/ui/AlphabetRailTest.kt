@@ -35,7 +35,8 @@ class AlphabetRailTest {
         val stops = alphabetStops(listOf("Apple", "Avocado", "Banana", "Cherry"))
 
         assertEquals('A', activeAlphabetLetter(stops, 1))
-        assertEquals('B', activeAlphabetLetter(stops, 3))
+        assertEquals('B', activeAlphabetLetter(stops, 2))
+        assertEquals('C', activeAlphabetLetter(stops, 3))
         assertEquals('C', activeAlphabetLetter(stops, 99))
     }
 
