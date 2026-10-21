@@ -172,8 +172,8 @@ fun formatBreakdown(tracks: List<Track>): List<InsightSlice> {
 /**
  * The format a file is in, read from its MIME type first and its name second.
  *
- * MediaStore sometimes reports a bare `audio/*` or nothing at all, so the extension is the
- * fallback rather than a second opinion. Anything unrecognised is Other instead of being
+ * MediaStore sometimes reports a wildcard audio type or nothing at all, so the extension is
+ * the fallback rather than a second opinion. Anything unrecognised is Other instead of being
  * guessed at.
  */
 fun audioFormatOf(track: Track): AudioFormat =
