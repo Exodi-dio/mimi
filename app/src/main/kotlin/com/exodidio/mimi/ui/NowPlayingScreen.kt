@@ -72,9 +72,15 @@ import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MicVocal
 import com.composables.icons.lucide.Music
+import com.composables.icons.lucide.Pause
+import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.Repeat
+import com.composables.icons.lucide.Repeat1
 import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.Shuffle
 import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
+import com.composables.icons.lucide.Timer
 import com.exodidio.mimi.lyrics.LyricsQuery
 import com.exodidio.mimi.library.SongFormat
 import com.exodidio.mimi.library.readSongFormat

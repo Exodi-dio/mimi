@@ -1,6 +1,7 @@
 package com.exodidio.mimi.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +23,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -128,12 +128,12 @@ fun LyricsPanel(
             // reading ahead rather than a way of losing the words.
             var scrolledAway by remember(lyrics) { mutableStateOf(false) }
 
-            LaunchedEffect(listState) {
-                // Only a finger counts. The scroll the song makes is not the listener's,
-                // so it must not be mistaken for one.
-                snapshotFlow { listState.isDragging }.collect { dragging ->
-                    if (dragging) scrolledAway = true
-                }
+            // Only a finger counts. The scroll the song makes is not the listener's,
+            // so it must not be mistaken for one.
+            val dragged by listState.interactionSource.collectIsDraggedAsState()
+
+            LaunchedEffect(dragged) {
+                if (dragged) scrolledAway = true
             }
 
             val focusIndex = if (scrolledAway) listState.firstVisibleItemIndex else currentIndex
