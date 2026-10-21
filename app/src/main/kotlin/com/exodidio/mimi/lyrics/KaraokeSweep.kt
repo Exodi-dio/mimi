@@ -62,8 +62,9 @@ object KaraokeSweep {
 
         val rightToLeft = isRightToLeft(line.text)
         val groups = group(line.words, rightToLeft)
+        val drawn = if (rightToLeft) groups.reversed() else groups
 
-        return groups.map { entry ->
+        return drawn.map { entry ->
             SweptWord(
                 parts = entry.parts,
                 gap = entry.gap,
