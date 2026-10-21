@@ -207,23 +207,22 @@ private fun LyricText(
  * are read, and rebuilding it per song would read a megabyte of them again each time.
  * Lines it cannot read come back blank rather than as a copy of themselves, so a sheet
  * that is mostly English does not double in length.
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 10.dp, start = 28.dp, end = 28.dp),
-                    )
-                } else {
-                    Text(
-                        text = "Turn on \u201cLook for lyrics online\u201d in Settings to search for them.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 10.dp, start = 28.dp, end = 28.dp),
-                    )
-                }
-            }
-        }
+ */
+@Composable
+private fun rememberRomanised(lyrics: Lyrics, enabled: Boolean): List<String>? {
+    if (!enabled) return null
+
+    val context = LocalContext.current
+    val romaniser = remember(context) {
+        RomanizeLyrics(AndroidRomanizationEngine { name -> context.assets.open(name) })
     }
+
+    return produceState<List<String>?>(initialValue = null, lyrics, romaniser) {
+        val converted = romaniser(lyrics.lines.map { it.text })
+        value = converted.map { line ->
+            if (line.status == RomanizedStatus.Converted) line.text else ""
+        }
+    }.value
 }
 
 /**
