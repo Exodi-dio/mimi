@@ -3,8 +3,8 @@
 A local music player for Android. Plays your own files. No account, no ads.
 
 It works entirely offline except for one thing: if a song has no lyrics in its file, the
-lyrics screen offers to look them up in a public database. That is off until you turn it on
-and it only ever happens one song at a time, when you ask. Nothing else touches the network.
+menu on the now playing screen can look them up in two public databases. That only ever
+happens one song at a time, when you ask. Nothing else touches the network.
 
 ## Status
 
@@ -32,7 +32,10 @@ and it is not meant to be.
 | Keep the queue as a playlist | |
 | Equaliser with a switch and seven presets, spread across however many bands the device has | |
 | Lyrics read out of the files themselves, timed or not | |
-| Lyrics looked up for a song whose file has none, one song at a time and only when asked | |
+| Lyrics looked up for a song whose file has none, from the menu on the now playing screen, one song at a time and only when asked | |
+| Found lyrics kept beside the app for that song, with a preview before one is chosen | |
+| Transliterated lyrics, switched by a button over the words, working with no connection | |
+| One credit line split into the artists and genres actually on it, with the separators editable | |
 | Background playback, notification, lock screen | |
 | Mini player with a progress rule, and a Now Playing screen with artwork, lyrics and queue faces | |
 | Resume last track, position, shuffle and repeat | |
