@@ -26,7 +26,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.library.AlbumSort
 import com.exodidio.mimi.library.ArtistSort
@@ -60,23 +59,24 @@ private enum class SettingsChoice {
 private const val HIGHLIGHT_MILLIS = 1_600
 
 /**
- * Settings, split into pages.
+ * One page of settings, drawn from the catalogue.
  *
- * Split rather than listed because a settings screen that grows one row at a time becomes
- * unusable long before it becomes complete. Four pages is the shape where every row sits
- * under a heading somebody would look for it under, and it is the shape a skin can restyle
- * without reordering anything.
+ * A page rather than a tabbed screen because the drawer does the splitting: each group is
+ * a place of its own with a back arrow, which is the shape a list of five groups implies
+ * and the shape a page with a title can grow into. The rows are the catalogue's, so a
+ * heading and the rows under it cannot disagree, and the only thing this screen decides is
+ * what each row does.
  *
- * The search field sits above the pages and covers all of them, because the listener knows
- * the word they are looking for and not which page it was filed under. A result switches to
- * its page and scrolls the row into view rather than opening a copy of the setting, so what
- * is found is the same row that can be changed afterwards.
- *
- * Each change is a function from the current settings to the next, so this screen never
- * has to know what the values are — it only has to know what it is changing.
+ * A page arrives either plain or with [reveal], the place the drawer or a search result
+ * asked for. A named row is scrolled into view and tinted for a moment rather than opened
+ * in a copy: what was found is the row that can then be changed. A named section is only
+ * scrolled to, because the drawer already said what is on it. Each change is a function
+ * from the current settings to the next, so this screen never has to know what the values
+ * are — it only has to know what it is changing.
  */
 @Composable
-fun SettingsScreen(
+fun SettingsGroupScreen(
+    group: SettingsGroupId,
     settings: Settings,
     onChange: ((Settings) -> Settings) -> Unit,
     trackCount: Int,
@@ -87,89 +87,54 @@ fun SettingsScreen(
     onOpenStatistics: () -> Unit,
     folders: List<FolderSummary>,
     onToggleFolder: (String) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    reveal: SettingsReveal? = null,
 ) {
-    var tab by rememberSaveable { mutableStateOf(SettingsPage.LIBRARY) }
-    var query by rememberSaveable { mutableStateOf("") }
     var openChoice by remember { mutableStateOf<SettingsChoice?>(null) }
-    var scrollTarget by remember { mutableStateOf<String?>(null) }
     var highlighted by remember { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
 
-    val libraryState = rememberLazyListState()
-    val playbackState = rememberLazyListState()
-    val appearanceState = rememberLazyListState()
-    val aboutState = rememberLazyListState()
-    val listState = when (tab) {
-        SettingsPage.LIBRARY -> libraryState
-        SettingsPage.PLAYBACK -> playbackState
-        SettingsPage.APPEARANCE -> appearanceState
-        SettingsPage.ABOUT -> aboutState
-    }
-
-    val results = remember(query) { searchSettings(query) }
+    // Worked out once per visit rather than on every keystroke elsewhere: the duplicate
+    // finder is a whole-library pass and this page may be open for a while.
     val duplicates = remember(tracks) { tracks.duplicateGroups() }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        ScreenHeader(title = "Settings")
-        SettingsSearchField(
-            query = query,
-            onQueryChange = { query = it },
-        )
-        PillRow(
-            options = SettingsPage.entries,
-            selected = tab,
-            label = { it.label },
-            onSelect = {
-                tab = it
-                query = ""
-            },
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-        ) {
-            if (query.isNotBlank()) {
-                SettingsSearchResults(
-                    results = results,
-                    query = query,
-                    settings = settings,
-                    onPick = { entry ->
-                        query = ""
-                        tab = entry.page
-                        scrollTarget = entry.key
-                    },
-                )
-            } else {
-                LaunchedEffect(tab, scrollTarget) {
-                    val target = scrollTarget ?: return@LaunchedEffect
-                    val index = settingsItemIndex(tab, target)
-                    if (index >= 0) {
-                        listState.animateScrollToItem(index)
-                        highlighted = target
-                        delay(HIGHLIGHT_MILLIS.toLong())
-                        highlighted = null
-                    }
-                    scrollTarget = null
-                }
-
-                SettingsPageList(
-                    page = tab,
-                    settings = settings,
-                    onChange = onChange,
-                    trackCount = trackCount,
-                    scanning = scanning,
-                    lastScanDropped = lastScanDropped,
-                    onRescan = onRescan,
-                    onOpenStatistics = onOpenStatistics,
-                    onChoose = { openChoice = it },
-                    listState = listState,
-                    highlighted = highlighted,
-                )
+    LaunchedEffect(group, reveal) {
+        val target = reveal ?: return@LaunchedEffect
+        val index = when (target) {
+            is SettingsReveal.Row -> settingsItemIndex(group, target.key)
+            is SettingsReveal.Section -> settingsSectionIndex(group, target.heading)
+        }
+        if (index >= 0) {
+            listState.animateScrollToItem(index)
+            if (target is SettingsReveal.Row) {
+                highlighted = target.key
+                delay(HIGHLIGHT_MILLIS.toLong())
+                highlighted = null
             }
         }
+    }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        ScreenHeader(
+            title = group.title,
+            subtitle = group.subtitle,
+            onBack = onBack,
+        )
+
+        SettingsGroupList(
+            group = group,
+            settings = settings,
+            onChange = onChange,
+            trackCount = trackCount,
+            scanning = scanning,
+            lastScanDropped = lastScanDropped,
+            onRescan = onRescan,
+            onOpenStatistics = onOpenStatistics,
+            onChoose = { openChoice = it },
+            listState = listState,
+            highlighted = highlighted,
+        )
     }
 
     when (openChoice) {
@@ -284,15 +249,19 @@ fun SettingsScreen(
 }
 
 /**
- * One page, drawn from the catalogue so the rows and their headings cannot disagree.
+ * One group, drawn from the catalogue so the rows and their headings cannot disagree.
  *
  * Each row is its own lazy item keyed by the catalogue key, which is what lets a search
  * result scroll to it by index. A divider is drawn under a row only when another row of the
  * same section follows, so headings and section boundaries stay unbroken.
+ *
+ * The horizontal inset comes from the rows and headings themselves, which all use the same
+ * twenty dp. That is deliberate: every settings page is inset the same way whether or not
+ * it has a row that draws its own full-width control.
  */
 @Composable
-private fun SettingsPageList(
-    page: SettingsPage,
+private fun SettingsGroupList(
+    group: SettingsGroupId,
     settings: Settings,
     onChange: ((Settings) -> Settings) -> Unit,
     trackCount: Int,
@@ -304,7 +273,7 @@ private fun SettingsPageList(
     listState: LazyListState,
     highlighted: String?,
 ) {
-    val items = remember(page) { settingsPageItems(page) }
+    val items = remember(group) { settingsGroupItems(group) }
 
     LazyColumn(
         state = listState,
@@ -313,11 +282,11 @@ private fun SettingsPageList(
     ) {
         items.forEachIndexed { index, line ->
             when (line) {
-                is SettingsPageItem.Heading -> item(key = "heading:${page.name}:${line.section}") {
+                is SettingsGroupItem.Heading -> item(key = "heading:${group.name}:${line.section}") {
                     SettingsSectionHeading(line.section)
                 }
 
-                is SettingsPageItem.Row -> {
+                is SettingsGroupItem.Row -> {
                     val entry = line.entry
                     item(key = entry.key) {
                         val tint by animateColorAsState(
@@ -345,7 +314,7 @@ private fun SettingsPageList(
                                 onChange = onChange,
                                 onChoose = onChoose,
                             )
-                            if (items.getOrNull(index + 1) is SettingsPageItem.Row) {
+                            if (items.getOrNull(index + 1) is SettingsGroupItem.Row) {
                                 HorizontalDivider(
                                     modifier = Modifier.padding(horizontal = 20.dp),
                                     color = MaterialTheme.colorScheme.outlineVariant,
@@ -634,66 +603,94 @@ private fun subtitleFor(entry: SettingEntry, settings: Settings): String = when 
 }
 
 /**
- * Search results for a query, each naming the page and section it lives on.
+ * Every setting, found by typing what it is about.
  *
- * A result is a signpost rather than a second copy of the setting: tapping it lands on the
- * real row, already scrolled to and briefly tinted, so the change is made in the place the
- * listener will look next time.
+ * A screen of its own rather than a field over each page, because the listener knows the
+ * word and not which of five pages it was filed under. A result is a signpost rather than
+ * a second copy of the setting: tapping it opens the owning page scrolled to the real row
+ * and briefly tinted, so the change is made where the listener will look next time.
  */
 @Composable
-private fun SettingsSearchResults(
-    results: List<SettingEntry>,
-    query: String,
-    settings: Settings,
+fun SettingsSearchScreen(
     onPick: (SettingEntry) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    if (results.isEmpty()) {
-        Text(
-            text = "Nothing in settings matches \u201c$query\u201d.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp),
-        )
-        return
-    }
+    var query by rememberSaveable { mutableStateOf("") }
+    val results = remember(query) { searchSettings(query) }
+    val settings = LocalSettings.current
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
-    ) {
-        items(results, key = { it.key }) { entry ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onPick(entry) }
-                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
-            ) {
-                Text(text = entry.title, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    text = subtitleFor(entry, settings),
-                    style = MaterialTheme.typography.bodySmall,
+    Column(modifier = modifier.fillMaxSize()) {
+        ScreenHeader(title = "Search settings", onBack = onBack)
+        SettingsSearchField(
+            query = query,
+            onQueryChange = { query = it },
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            when {
+                query.isBlank() -> Text(
+                    text = "Search by the name of a setting, by what it does, or by the " +
+                        "word you would use for it.",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp),
                 )
-                Text(
-                    text = "${entry.page.label} · ${entry.section}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 4.dp),
+
+                results.isEmpty() -> Text(
+                    text = "Nothing in settings matches \u201c$query\u201d.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp),
                 )
+
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                ) {
+                    items(results, key = { it.key }) { entry ->
+                        SettingsResultRow(
+                            entry = entry,
+                            settings = settings,
+                            onClick = { onPick(entry) },
+                        )
+                    }
+                }
             }
         }
     }
 }
 
-/** The installed version name, or "dev" for a build that did not stamp one. */
+/** One search result: the row it stands for, and where that row lives. */
 @Composable
-private fun appVersion(): String {
-    val context = LocalContext.current
-    return remember(context) {
-        runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull() ?: "dev"
+private fun SettingsResultRow(
+    entry: SettingEntry,
+    settings: Settings,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+    ) {
+        Text(text = entry.title, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            text = subtitleFor(entry, settings),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+        )
+        Text(
+            text = "${entry.group.title} · ${entry.section}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

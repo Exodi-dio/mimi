@@ -1,20 +1,58 @@
 package com.exodidio.mimi.ui
 
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.composables.icons.lucide.Disc3
+import com.composables.icons.lucide.Info
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.Wrench
+
 /**
- * The four pages of settings.
+ * The five places settings are filed under.
  *
- * Public rather than private because the catalogue names a page for every row it knows
- * about, and a second list of page names would be a second thing to keep in step.
+ * These are the drawer's rows and the titles of its pages, so the two cannot drift: the
+ * drawer is drawn from this enum rather than from a list written beside it. Each one
+ * carries its own icon and a line saying what is inside, because a drawer is read at a
+ * glance and "Appearance" alone does not say whether it holds the theme or the fonts.
+ *
+ * Public because the catalogue names a group for every row it knows about, and a second
+ * list of group names would be a second thing to keep in step.
  */
-enum class SettingsPage(val label: String) {
-    LIBRARY("Library"),
-    PLAYBACK("Playback"),
-    APPEARANCE("Appearance"),
-    ABOUT("About"),
+enum class SettingsGroupId(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+) {
+    LIBRARY(
+        title = "Library",
+        subtitle = "Finding music, names and grouping, and what to leave out.",
+        icon = Lucide.Disc3,
+    ),
+    PLAYBACK(
+        title = "Playback",
+        subtitle = "Sound, behaviour and the words on screen.",
+        icon = Lucide.Play,
+    ),
+    APPEARANCE(
+        title = "Appearance",
+        subtitle = "Theme, and how the rows and lists are laid out.",
+        icon = Lucide.Palette,
+    ),
+    TOOLS(
+        title = "Tools",
+        subtitle = "The equaliser, statistics and library cleanup.",
+        icon = Lucide.Wrench,
+    ),
+    ABOUT(
+        title = "About",
+        subtitle = "This app, its licence and the pieces it is built from.",
+        icon = Lucide.Info,
+    ),
 }
 
 /**
- * One row of the settings screen, described rather than drawn.
+ * One row of a settings page, described rather than drawn.
  *
  * The catalogue is the only list of what settings exist, so search, the rows themselves
  * and the test that checks the grouping all read the same order. [title], [subtitle] and
@@ -24,7 +62,7 @@ enum class SettingsPage(val label: String) {
  */
 data class SettingEntry(
     val key: String,
-    val page: SettingsPage,
+    val group: SettingsGroupId,
     val section: String,
     val title: String,
     val subtitle: String,
@@ -34,15 +72,19 @@ data class SettingEntry(
 /**
  * Every setting, in the order it is shown.
  *
- * Sections appear in contiguous runs within a page because the page renderer opens a
+ * Sections appear in contiguous runs within a group because the page renderer opens a
  * heading whenever the section changes; grouping rows by section here is what decides the
  * shape of every page. Keywords are lowercase because matching normalises the query and
  * not the catalogue.
+ *
+ * Tools holds the things that act rather than choose — the equaliser, the statistics, the
+ * duplicate finder and the hidden names — because they are errands rather than prefs, and
+ * a listener looking for one of them looks under "tools" long before "library".
  */
 val settingsCatalog: List<SettingEntry> = listOf(
     SettingEntry(
         key = "library.scan_on_launch",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Finding music",
         title = "Scan when the app opens",
         subtitle = "Looks for new music when you come back to it.",
@@ -50,7 +92,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.watch_for_changes",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Finding music",
         title = "Watch for changes",
         subtitle = "Rescans soon after files appear or disappear.",
@@ -58,7 +100,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.min_song_length",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Finding music",
         title = "Shortest song shown",
         subtitle = "Keeps ringtones and voice notes out of the library.",
@@ -66,7 +108,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.song_count",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "This device",
         title = "Songs",
         subtitle = "How many songs the library holds.",
@@ -74,7 +116,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.rescan",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "This device",
         title = "Rescan library",
         subtitle = "Look for new music now.",
@@ -82,23 +124,15 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.played_from",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "This device",
         title = "Played from",
         subtitle = "Files already on this device.",
         keywords = listOf("storage", "local", "source", "device", "files"),
     ),
     SettingEntry(
-        key = "library.duplicates",
-        page = SettingsPage.LIBRARY,
-        section = "This device",
-        title = "Find duplicates",
-        subtitle = "Tracks sharing a title, artist and length.",
-        keywords = listOf("duplicate", "same", "copies", "twice", "cleanup", "files"),
-    ),
-    SettingEntry(
         key = "library.credit_separators",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Names and grouping",
         title = "Split names at",
         subtitle = "Marks and words that split one credit into several.",
@@ -109,7 +143,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.song_sort",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Names and grouping",
         title = "Sort songs by",
         subtitle = "Orders the songs list.",
@@ -117,7 +151,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.album_sort",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Names and grouping",
         title = "Sort albums by",
         subtitle = "Orders the albums grid.",
@@ -125,7 +159,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.artist_sort",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Names and grouping",
         title = "Sort artists by",
         subtitle = "Orders the artists list.",
@@ -133,7 +167,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.sort_descending",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Names and grouping",
         title = "Reverse the chosen order",
         subtitle = "Songs, albums, artists and the lists inside them.",
@@ -141,7 +175,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.detail_sort",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Names and grouping",
         title = "Sort lists inside a screen",
         subtitle = "Albums, artists, playlists and the browse screens. As listed unless asked.",
@@ -149,42 +183,15 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "library.excluded_folders",
-        page = SettingsPage.LIBRARY,
+        group = SettingsGroupId.LIBRARY,
         section = "Songs to leave out",
         title = "Folders to leave out",
         subtitle = "Every folder on the device is read.",
         keywords = listOf("exclude", "ignore", "skip", "folder", "hide", "leave out"),
     ),
     SettingEntry(
-        key = "library.hidden_names",
-        page = SettingsPage.LIBRARY,
-        section = "Songs to leave out",
-        title = "Hidden artists and albums",
-        subtitle = "Names hidden from every list. Nothing is deleted.",
-        keywords = listOf("hide", "hidden", "artist", "album", "unhide", "show", "leave out"),
-    ),
-    SettingEntry(
-        key = "playback.equalizer_enabled",
-        page = SettingsPage.PLAYBACK,
-        section = "Sound",
-        title = "Equaliser",
-        subtitle = "Shapes the sound of what is playing. Off unless you ask for it.",
-        keywords = listOf("sound", "bass", "treble", "preset", "audio", "eq", "shape"),
-    ),
-    SettingEntry(
-        key = "playback.equalizer_preset",
-        page = SettingsPage.PLAYBACK,
-        section = "Sound",
-        title = "Curves and bands",
-        subtitle = "Pick a shape and drag the ten bands.",
-        keywords = listOf(
-            "equalizer", "equaliser", "bass", "treble", "preset", "band", "curve",
-            "frequency", "sound",
-        ),
-    ),
-    SettingEntry(
         key = "playback.skip_silence",
-        page = SettingsPage.PLAYBACK,
+        group = SettingsGroupId.PLAYBACK,
         section = "Sound",
         title = "Skip silent passages",
         subtitle = "Steps over long silences inside a track.",
@@ -192,7 +199,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "playback.resume_session",
-        page = SettingsPage.PLAYBACK,
+        group = SettingsGroupId.PLAYBACK,
         section = "Behaviour",
         title = "Resume where you left off",
         subtitle = "Opens on the last song you heard, paused where it stopped.",
@@ -200,7 +207,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "playback.pause_on_disconnect",
-        page = SettingsPage.PLAYBACK,
+        group = SettingsGroupId.PLAYBACK,
         section = "Behaviour",
         title = "Pause when headphones unplug",
         subtitle = "Rather than carrying on through the speaker.",
@@ -208,7 +215,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "playback.fade_out_sleep_timer",
-        page = SettingsPage.PLAYBACK,
+        group = SettingsGroupId.PLAYBACK,
         section = "Behaviour",
         title = "Fade out with the sleep timer",
         subtitle = "Turns the volume down over the last fifteen seconds.",
@@ -216,7 +223,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "playback.show_remaining_time",
-        page = SettingsPage.PLAYBACK,
+        group = SettingsGroupId.PLAYBACK,
         section = "Behaviour",
         title = "Count down instead of up",
         subtitle = "Shows the time remaining rather than the time played.",
@@ -224,7 +231,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "playback.romanize_lyrics",
-        page = SettingsPage.PLAYBACK,
+        group = SettingsGroupId.PLAYBACK,
         section = "Words",
         title = "Read lyrics in latin letters",
         subtitle = "Writes Chinese and Korean words in latin letters.",
@@ -235,7 +242,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "appearance.theme",
-        page = SettingsPage.APPEARANCE,
+        group = SettingsGroupId.APPEARANCE,
         section = "Theme",
         title = "Theme",
         subtitle = "Light, dark, or whatever the phone is doing.",
@@ -243,31 +250,66 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "appearance.show_artwork",
-        page = SettingsPage.APPEARANCE,
+        group = SettingsGroupId.APPEARANCE,
         section = "Lists and layout",
         title = "Show cover art",
         subtitle = "Draws the cover beside each song in a list.",
         keywords = listOf("artwork", "cover", "album art", "picture", "list", "layout"),
     ),
     SettingEntry(
+        key = "playback.equalizer_enabled",
+        group = SettingsGroupId.TOOLS,
+        section = "Equaliser",
+        title = "Equaliser",
+        subtitle = "Shapes the sound of what is playing. Off unless you ask for it.",
+        keywords = listOf("sound", "bass", "treble", "preset", "audio", "eq", "shape"),
+    ),
+    SettingEntry(
+        key = "playback.equalizer_preset",
+        group = SettingsGroupId.TOOLS,
+        section = "Equaliser",
+        title = "Curves and bands",
+        subtitle = "Pick a shape and drag the ten bands.",
+        keywords = listOf(
+            "equalizer", "equaliser", "bass", "treble", "preset", "band", "curve",
+            "frequency", "sound",
+        ),
+    ),
+    SettingEntry(
+        key = "about.statistics",
+        group = SettingsGroupId.TOOLS,
+        section = "Statistics",
+        title = "Statistics",
+        subtitle = "How much there is, and how much you have played.",
+        keywords = listOf("counts", "plays", "history", "listening", "numbers"),
+    ),
+    SettingEntry(
+        key = "library.duplicates",
+        group = SettingsGroupId.TOOLS,
+        section = "Duplicate songs",
+        title = "Find duplicates",
+        subtitle = "Tracks sharing a title, artist and length.",
+        keywords = listOf("duplicate", "same", "copies", "twice", "cleanup", "files"),
+    ),
+    SettingEntry(
+        key = "library.hidden_names",
+        group = SettingsGroupId.TOOLS,
+        section = "Hidden names",
+        title = "Hidden artists and albums",
+        subtitle = "Names hidden from every list. Nothing is deleted.",
+        keywords = listOf("hide", "hidden", "artist", "album", "unhide", "show", "leave out"),
+    ),
+    SettingEntry(
         key = "about.version",
-        page = SettingsPage.ABOUT,
+        group = SettingsGroupId.ABOUT,
         section = "This app",
         title = "Version",
         subtitle = "The build installed on this device.",
         keywords = listOf("build", "release", "update", "number"),
     ),
     SettingEntry(
-        key = "about.statistics",
-        page = SettingsPage.ABOUT,
-        section = "This app",
-        title = "Statistics",
-        subtitle = "How much there is, and how much you have played.",
-        keywords = listOf("counts", "plays", "history", "listening", "numbers"),
-    ),
-    SettingEntry(
         key = "about.licence",
-        page = SettingsPage.ABOUT,
+        group = SettingsGroupId.ABOUT,
         section = "Licences and credits",
         title = "Licence",
         subtitle = "GPL-3.0.",
@@ -275,7 +317,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         key = "about.built_with",
-        page = SettingsPage.ABOUT,
+        group = SettingsGroupId.ABOUT,
         section = "Licences and credits",
         title = "Built with",
         subtitle = "Media3, Compose and Room.",
@@ -289,45 +331,91 @@ val settingsCatalog: List<SettingEntry> = listOf(
  * The page renderer and the scroll-to-a-result helper both walk this list, which is what
  * keeps the item a search result points at and the item a page draws from drifting apart.
  */
-sealed interface SettingsPageItem {
-    data class Heading(val section: String) : SettingsPageItem
-    data class Row(val entry: SettingEntry) : SettingsPageItem
+sealed interface SettingsGroupItem {
+    data class Heading(val section: String) : SettingsGroupItem
+    data class Row(val entry: SettingEntry) : SettingsGroupItem
 }
 
 /**
- * A page as the list it is drawn as.
+ * What a settings page should bring into view when it opens.
+ *
+ * Two things name a place on a page and they name it differently: a search result knows
+ * the row it found, while a drawer row knows the section it leads to. They stay apart
+ * rather than travelling as bare strings because the page does something different with
+ * each — a found row is tinted for a moment, a section is only scrolled to.
+ */
+sealed interface SettingsReveal {
+
+    /** The catalogue key of a row, which is what a search result carries. */
+    data class Row(val key: String) : SettingsReveal
+
+    /** A section heading, which is what a drawer row carries. */
+    data class Section(val heading: String) : SettingsReveal
+}
+
+/**
+ * The section headings of [group], in the order the page draws them.
+ *
+ * The drawer is a table of contents for the pages, so it takes its rows from the same
+ * place the pages take their headings. That is the whole reason this is a function rather
+ * than a list written in the drawer: a section added to the catalogue appears in both, and
+ * a section renamed appears renamed in both.
+ */
+fun settingsSections(
+    group: SettingsGroupId,
+    entries: List<SettingEntry> = settingsCatalog,
+): List<String> = settingsGroupItems(group, entries)
+    .filterIsInstance<SettingsGroupItem.Heading>()
+    .map { it.section }
+
+/**
+ * A group as the list it is drawn as.
  *
  * A heading is inserted each time the section changes, so the catalogue's order alone
  * decides where headings land and no page has to be described twice.
  */
-fun settingsPageItems(
-    page: SettingsPage,
+fun settingsGroupItems(
+    group: SettingsGroupId,
     entries: List<SettingEntry> = settingsCatalog,
-): List<SettingsPageItem> {
-    val items = mutableListOf<SettingsPageItem>()
+): List<SettingsGroupItem> {
+    val items = mutableListOf<SettingsGroupItem>()
     var current: String? = null
-    entries.filter { it.page == page }.forEach { entry ->
+    entries.filter { it.group == group }.forEach { entry ->
         if (entry.section != current) {
-            items += SettingsPageItem.Heading(entry.section)
+            items += SettingsGroupItem.Heading(entry.section)
             current = entry.section
         }
-        items += SettingsPageItem.Row(entry)
+        items += SettingsGroupItem.Row(entry)
     }
     return items
 }
 
 /**
- * Where [key] sits in [page]'s lazy list, or -1 when the page does not hold it.
+ * Where [key] sits in [group]'s lazy list, or -1 when the group does not hold it.
  *
  * The index counts headings as well as rows because that is what a lazy list is scrolled
  * by; asking the catalogue for a row number would land one heading short on later sections.
  */
 fun settingsItemIndex(
-    page: SettingsPage,
+    group: SettingsGroupId,
     key: String,
     entries: List<SettingEntry> = settingsCatalog,
-): Int = settingsPageItems(page, entries)
-    .indexOfFirst { it is SettingsPageItem.Row && it.entry.key == key }
+): Int = settingsGroupItems(group, entries)
+    .indexOfFirst { it is SettingsGroupItem.Row && it.entry.key == key }
+
+/**
+ * Where the heading [section] sits in [group]'s lazy list, or -1 when the group has none.
+ *
+ * Drawer rows name sections rather than rows, so this is the index those rows scroll to.
+ * Kept beside [settingsItemIndex] because both answer the same question — where does this
+ * page start reading — and a second way of counting would disagree with the first.
+ */
+fun settingsSectionIndex(
+    group: SettingsGroupId,
+    section: String,
+    entries: List<SettingEntry> = settingsCatalog,
+): Int = settingsGroupItems(group, entries)
+    .indexOfFirst { it is SettingsGroupItem.Heading && it.section == section }
 
 /**
  * The settings matching [query], best match first.

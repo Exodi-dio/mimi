@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,8 +24,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,7 +47,7 @@ import com.composables.icons.lucide.X
  */
 
 /**
- * A section heading on a settings page.
+ * A section heading on a settings page, and the label over a group in the drawer.
  *
  * Small and letterspaced so it reads as a label over the rows rather than as another row,
  * and muted so the rows keep the eye. The space above is generous and the space below is
@@ -190,6 +193,7 @@ private fun SettingsRowFrame(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 56.dp)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -269,4 +273,21 @@ fun SettingsNote(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun SettingsPageFooter() {
     Spacer(modifier = Modifier.height(24.dp))
+}
+
+/**
+ * The installed version name, or "dev" for a build that did not stamp one.
+ *
+ * Read here rather than in each screen that shows it because the about page and the foot
+ * of the drawer both name the build, and two answers to "which version is this" would be
+ * one answer too many.
+ */
+@Composable
+fun appVersion(): String {
+    val context = LocalContext.current
+    return remember(context) {
+        runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull() ?: "dev"
+    }
 }

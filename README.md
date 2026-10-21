@@ -51,7 +51,9 @@ and it is not meant to be.
 | A duplicate finder that groups copies by title, artist and length, and only reports them | |
 | Each library section remembers where it was scrolled to, and starts afresh when the order changes | |
 | Swiping between artwork, lyrics and queue, and a full-screen cover on tap | |
-| Settings in tabs: library, playback, appearance, about | |
+| A profile at the top of the drawer: a name, a picture and a banner, kept on the device with no account | |
+| Settings in a navigation drawer, split across Library, Playback, Appearance, Tools and About pages | |
+| Settings search that opens the page a setting lives on and points out the row | |
 
 ## Stack
 

@@ -3,6 +3,7 @@ package com.exodidio.mimi
 import android.app.Application
 import com.exodidio.mimi.library.LibraryRepository
 import com.exodidio.mimi.library.MimiDatabase
+import com.exodidio.mimi.library.ProfileStore
 import com.exodidio.mimi.library.SettingsStore
 import com.exodidio.mimi.lyrics.LyricsFinder
 import com.exodidio.mimi.lyrics.LyricsStore
@@ -22,6 +23,15 @@ class MimiApplication : Application() {
     val library: LibraryRepository by lazy { LibraryRepository(this, database) }
 
     val settings: SettingsStore by lazy { SettingsStore(database.metaDao()) }
+
+    /**
+     * The name and pictures shown at the top of the drawer.
+     *
+     * Built on demand rather than beside the settings store because it is only read when
+     * the drawer is first opened, and its files are the sort of thing a listener may never
+     * choose to set.
+     */
+    val profileStore: ProfileStore by lazy { ProfileStore(this) }
 
     /**
      * Shared so its cache outlives any one screen: the words for a song are read once

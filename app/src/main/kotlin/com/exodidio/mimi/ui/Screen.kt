@@ -20,9 +20,26 @@ sealed interface Screen {
 
     data object Search : Screen
 
-    data object Settings : Screen
+    /**
+     * One page of settings, reached from the drawer.
+     *
+     * [reveal] is the place on the page the drawer or the search screen had in mind. It is
+     * carried on the screen rather than kept beside it so opening a page and finding the
+     * thing that was asked for are one decision: the page scrolls there once, tints the row
+     * when it is a row, and then it is just a page again.
+     */
+    data class SettingsGroup(
+        val group: SettingsGroupId,
+        val reveal: SettingsReveal? = null,
+    ) : Screen
 
-    /** What the library adds up to, reached from the about page. */
+    /** Every setting by name, for someone who knows the word but not the page. */
+    data object SettingsSearch : Screen
+
+    /** The name and pictures shown at the top of the drawer. */
+    data object Profile : Screen
+
+    /** What the library adds up to, reached from the tools page. */
     data object Statistics : Screen
 
     data class AlbumDetail(val albumId: Long) : Screen

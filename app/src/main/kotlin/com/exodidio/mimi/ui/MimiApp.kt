@@ -3,27 +3,37 @@ package com.exodidio.mimi.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.Folder
@@ -32,22 +42,28 @@ import com.composables.icons.lucide.House
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Search
-import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.User
 import com.exodidio.mimi.library.PlaylistSummary
+import com.exodidio.mimi.library.Profile
 import com.exodidio.mimi.library.ThemeMode
 import com.exodidio.mimi.library.Track
 import com.exodidio.mimi.library.addingHiddenName
 import com.exodidio.mimi.library.splitCredits
 import com.exodidio.mimi.ui.theme.MimiTheme
+import kotlinx.coroutines.launch
 
 /**
  * The shell.
  *
- * Five tabs, which is what fits: home, the library, the songs that were loved, search and
- * settings. How the library is sliced — songs, albums, artists, playlists, genres,
+ * Five items at the bottom, which is what fits: home, the library, the songs that were
+ * loved, search, and the profile, which opens the drawer rather than going somewhere of
+ * its own. How the library is sliced — songs, albums, artists, playlists, genres,
  * composers, years, folders — is a section switcher inside it rather than more tabs, so
  * tabs stay about going somewhere and the switcher stays about looking at the same
  * collection differently.
+ *
+ * Settings live behind that fifth item because they are five pages now, and a drawer shows
+ * all five without spending a tab or a row of pills on the way in.
  */
 @Composable
 fun MimiApp() {
@@ -79,6 +95,7 @@ private fun MimiAppContent() {
     val playerViewModel: PlayerViewModel = viewModel()
     val navigator: NavigationViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
+    val profileViewModel: ProfileViewModel = viewModel()
 
     val tracks by libraryViewModel.tracks.collectAsStateWithLifecycle()
     val albums by libraryViewModel.albums.collectAsStateWithLifecycle()
@@ -101,6 +118,28 @@ private fun MimiAppContent() {
     val sleepAtEndOfTrack by playerViewModel.sleepAtEndOfTrack.collectAsStateWithLifecycle()
     val settings = LocalSettings.current
     val context = LocalContext.current
+
+    // The profile is one value read by the drawer, the profile page and the fifth nav item,
+    // so the files are looked up only when the profile says they changed.
+    val storedProfile by profileViewModel.profile.collectAsStateWithLifecycle()
+    val profile = storedProfile ?: Profile()
+    val pictureRevision = profileViewModel.pictureRevision
+    val profileAvatarFile = remember(profile.hasAvatar, pictureRevision) {
+        profileViewModel.avatarFile()
+    }
+    val profileBannerFile = remember(profile.hasBanner, pictureRevision) {
+        profileViewModel.bannerFile()
+    }
+    val navAvatar = rememberProfileImage(profileAvatarFile, 128, pictureRevision)
+
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    /** Closes the drawer and opens [destination], unless it is already the open screen. */
+    fun goFromDrawer(destination: Screen) {
+        scope.launch { drawerState.close() }
+        if (navigator.current != destination) navigator.openFromDrawer(destination)
+    }
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 
@@ -176,10 +215,21 @@ private fun MimiAppContent() {
             ),
         ) {
         AudioPermissionGate {
+            // The drawer is on top of whatever is behind it, so it takes the back gesture
+            // first. The other two are off while it is open rather than racing it.
+            BackHandler(enabled = drawerState.isOpen) {
+                scope.launch { drawerState.close() }
+            }
             // The player is an overlay, so it takes over the back gesture before the
             // navigation stack does.
-            BackHandler(enabled = showNowPlaying) { showNowPlaying = false }
-            BackHandler(enabled = !showNowPlaying && navigator.canGoBack) { navigator.pop() }
+            BackHandler(enabled = !drawerState.isOpen && showNowPlaying) {
+                showNowPlaying = false
+            }
+            BackHandler(
+                enabled = !drawerState.isOpen && !showNowPlaying && navigator.canGoBack
+            ) {
+                navigator.pop()
+            }
 
             if (showNowPlaying && hasTrack) {
                 NowPlayingScreen(
@@ -226,244 +276,239 @@ private fun MimiAppContent() {
                     },
                 )
             } else {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        when (screen) {
-                            Screen.Home -> HomeScreen(
-                                recentlyAdded = recentlyAdded,
-                                recentlyPlayed = recentlyPlayed,
-                                mostPlayed = mostPlayed,
-                                loved = lovedTracks,
-                                hasLibrary = tracks.isNotEmpty(),
-                                onShuffleAll = { playerViewModel.shuffleAll(tracks) },
-                                onTrackClick = { list, index -> playerViewModel.play(list, index) },
-                            )
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    modifier = Modifier.fillMaxSize(),
+                    drawerContent = {
+                        AppDrawer(
+                            profile = profile,
+                            avatarFile = profileAvatarFile,
+                            bannerFile = profileBannerFile,
+                            pictureRevision = pictureRevision,
+                            current = screen,
+                            onOpenProfile = { goFromDrawer(Screen.Profile) },
+                            onEditProfile = { goFromDrawer(Screen.Profile) },
+                            onSearchSettings = { goFromDrawer(Screen.SettingsSearch) },
+                            onOpenSection = { group, section ->
+                                goFromDrawer(
+                                    Screen.SettingsGroup(
+                                        group = group,
+                                        reveal = SettingsReveal.Section(section),
+                                    )
+                                )
+                            },
+                        )
+                    },
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            when (screen) {
+                                Screen.Home -> HomeScreen(
+                                    recentlyAdded = recentlyAdded,
+                                    recentlyPlayed = recentlyPlayed,
+                                    mostPlayed = mostPlayed,
+                                    loved = lovedTracks,
+                                    hasLibrary = tracks.isNotEmpty(),
+                                    onShuffleAll = { playerViewModel.shuffleAll(tracks) },
+                                    onTrackClick = { list, index -> playerViewModel.play(list, index) },
+                                )
 
-                            Screen.Library -> LibraryHome(
-                                libraryViewModel = libraryViewModel,
-                                navigator = navigator,
-                                section = navigator.librarySection,
-                                onSectionChange = navigator::selectSection,
-                                tracks = tracks,
-                                albums = albums,
-                                artists = artists,
-                                playlists = playlists,
-                                favoriteIds = favoriteIds,
-                                scanning = scanning,
-                                playingMediaId = playingMediaId,
-                                onPlay = { list, index -> playerViewModel.play(list, index) },
-                                onPlayNext = playerViewModel::playNext,
-                                onAddToQueue = playerViewModel::addToQueue,
-                                onAddToPlaylist = { addTarget = it },
-                                onOpenAlbum = { navigator.push(Screen.AlbumDetail(it.albumId)) },
-                                onOpenArtist = { navigator.push(Screen.ArtistDetail(it.artist)) },
-                                onOpenPlaylist = { navigator.push(Screen.PlaylistDetail(it.id)) },
-                                onCreatePlaylist = { creatingPlaylist = true },
-                                onPlayRandomAlbum = {
-                                    libraryViewModel.playRandomAlbum { songs ->
-                                        playerViewModel.play(songs, 0)
-                                    }
-                                },
-                                onOpenScreen = { navigator.push(it) },
-                            )
-
-                            Screen.Loved -> LovedScreen(
-                                tracks = lovedTracks,
-                                favoriteIds = favoriteIds,
-                                playingMediaId = playingMediaId,
-                                onToggleLove = libraryViewModel::toggleLoved,
-                                onPlayNext = playerViewModel::playNext,
-                                onAddToQueue = playerViewModel::addToQueue,
-                                onAddToPlaylist = { addTarget = it },
-                                onTrackClick = { index -> playerViewModel.play(lovedTracks, index) },
-                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
-                            )
-
-                            Screen.Search -> SearchScreen(
-                                query = searchQuery,
-                                onQueryChange = libraryViewModel::onQueryChange,
-                                results = searchResults,
-                                playingMediaId = playingMediaId,
-                                favoriteIds = favoriteIds,
-                                onToggleLove = libraryViewModel::toggleLoved,
-                                onPlayNext = playerViewModel::playNext,
-                                onAddToQueue = playerViewModel::addToQueue,
-                                onAddToPlaylist = { addTarget = it },
-                                onTrackClick = { index ->
-                                    // A result being worth playing is the sign the search
-                                    // was worth making, so that is when it is remembered.
-                                    libraryViewModel.rememberSearch()
-                                    playerViewModel.play(searchResults, index)
-                                },
-                                recentSearches = recentSearches,
-                                onPickRecent = libraryViewModel::onQueryChange,
-                                onForgetRecent = libraryViewModel::forgetSearches,
-                                onSubmit = libraryViewModel::rememberSearch,
-                            )
-
-                            Screen.Settings -> SettingsScreen(
-                                settings = settings,
-                                onChange = settingsViewModel::change,
-                                trackCount = tracks.size,
-                                tracks = tracks,
-                                scanning = scanning,
-                                lastScanDropped = lastScanDropped,
-                                onRescan = { libraryViewModel.refresh(force = true) },
-                                onOpenStatistics = { navigator.push(Screen.Statistics) },
-                                folders = folders,
-                                onToggleFolder = { folder ->
-                                    // An excluded folder is a statement about the library,
-                                    // so it is written as soon as it is made.
-                                    settingsViewModel.change { chosen ->
-                                        chosen.copy(
-                                            excludedFolders = if (folder in chosen.excludedFolders) {
-                                                chosen.excludedFolders - folder
-                                            } else {
-                                                chosen.excludedFolders + folder
-                                            },
-                                        )
-                                    }
-                                },
-                            )
-
-                            Screen.Statistics -> StatisticsScreen(
-                                stats = libraryStats(
-                                    songs = tracks,
-                                    albumCount = albums.size,
-                                    artistCount = artists.size,
-                                    lovedIds = favoriteIds,
-                                    playlistCount = playlists.size,
-                                    playStats = playStats,
-                                ),
-                                mostPlayed = mostPlayed,
-                                playingMediaId = playingMediaId,
-                                onBack = navigator::pop,
-                                onPlayTrack = { playerViewModel.play(listOf(it), 0) },
-                            )
-
-                            is Screen.AlbumDetail -> AlbumDetailScreen(
-                                albumId = screen.albumId,
-                                tracksForAlbum = libraryViewModel::tracksForAlbum,
-                                playingMediaId = playingMediaId,
-                                favoriteIds = favoriteIds,
-                                onToggleLove = libraryViewModel::toggleLoved,
-                                onPlayNext = playerViewModel::playNext,
-                                onAddToQueue = playerViewModel::addToQueue,
-                                onAddToPlaylist = { addTarget = it },
-                                onBack = navigator::pop,
-                                onPlay = { list, index -> playerViewModel.play(list, index) },
-                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
-                                onHideAlbum = { name ->
-                                    settingsViewModel.change {
-                                        it.copy(hiddenAlbums = it.hiddenAlbums.addingHiddenName(name))
-                                    }
-                                    navigator.pop()
-                                },
-                            )
-
-                            is Screen.ArtistDetail -> ArtistDetailScreen(
-                                artist = screen.artist,
-                                tracksForArtist = libraryViewModel::tracksForArtist,
-                                albumsForArtist = libraryViewModel::albumsForArtist,
-                                playingMediaId = playingMediaId,
-                                favoriteIds = favoriteIds,
-                                onToggleLove = libraryViewModel::toggleLoved,
-                                onPlayNext = playerViewModel::playNext,
-                                onAddToQueue = playerViewModel::addToQueue,
-                                onAddToPlaylist = { addTarget = it },
-                                onBack = navigator::pop,
-                                onAlbumClick = { navigator.push(Screen.AlbumDetail(it.albumId)) },
-                                onPlay = { list, index -> playerViewModel.play(list, index) },
-                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
-                                onHideArtist = { name ->
-                                    settingsViewModel.change {
-                                        it.copy(hiddenArtists = it.hiddenArtists.addingHiddenName(name))
-                                    }
-                                    navigator.pop()
-                                },
-                            )
-
-                            is Screen.PlaylistDetail -> {
-                                val playlist = playlists.firstOrNull { it.id == screen.playlistId }
-                                PlaylistDetailScreen(
-                                    playlistId = screen.playlistId,
-                                    name = playlist?.name ?: "Playlist",
-                                    tracksForPlaylist = libraryViewModel::tracksInPlaylist,
+                                Screen.Library -> LibraryHome(
+                                    libraryViewModel = libraryViewModel,
+                                    navigator = navigator,
+                                    section = navigator.librarySection,
+                                    onSectionChange = navigator::selectSection,
+                                    tracks = tracks,
+                                    albums = albums,
+                                    artists = artists,
+                                    playlists = playlists,
+                                    favoriteIds = favoriteIds,
+                                    scanning = scanning,
                                     playingMediaId = playingMediaId,
+                                    onPlay = { list, index -> playerViewModel.play(list, index) },
+                                    onPlayNext = playerViewModel::playNext,
+                                    onAddToQueue = playerViewModel::addToQueue,
+                                    onAddToPlaylist = { addTarget = it },
+                                    onOpenAlbum = { navigator.push(Screen.AlbumDetail(it.albumId)) },
+                                    onOpenArtist = { navigator.push(Screen.ArtistDetail(it.artist)) },
+                                    onOpenPlaylist = { navigator.push(Screen.PlaylistDetail(it.id)) },
+                                    onCreatePlaylist = { creatingPlaylist = true },
+                                    onPlayRandomAlbum = {
+                                        libraryViewModel.playRandomAlbum { songs ->
+                                            playerViewModel.play(songs, 0)
+                                        }
+                                    },
+                                    onOpenScreen = { navigator.push(it) },
+                                )
+
+                                Screen.Loved -> LovedScreen(
+                                    tracks = lovedTracks,
+                                    favoriteIds = favoriteIds,
+                                    playingMediaId = playingMediaId,
+                                    onToggleLove = libraryViewModel::toggleLoved,
+                                    onPlayNext = playerViewModel::playNext,
+                                    onAddToQueue = playerViewModel::addToQueue,
+                                    onAddToPlaylist = { addTarget = it },
+                                    onTrackClick = { index -> playerViewModel.play(lovedTracks, index) },
+                                    onShuffle = { list -> playerViewModel.shuffleAll(list) },
+                                )
+
+                                Screen.Search -> SearchScreen(
+                                    query = searchQuery,
+                                    onQueryChange = libraryViewModel::onQueryChange,
+                                    results = searchResults,
+                                    playingMediaId = playingMediaId,
+                                    favoriteIds = favoriteIds,
+                                    onToggleLove = libraryViewModel::toggleLoved,
+                                    onPlayNext = playerViewModel::playNext,
+                                    onAddToQueue = playerViewModel::addToQueue,
+                                    onAddToPlaylist = { addTarget = it },
+                                    onTrackClick = { index ->
+                                        // A result being worth playing is the sign the search
+                                        // was worth making, so that is when it is remembered.
+                                        libraryViewModel.rememberSearch()
+                                        playerViewModel.play(searchResults, index)
+                                    },
+                                    recentSearches = recentSearches,
+                                    onPickRecent = libraryViewModel::onQueryChange,
+                                    onForgetRecent = libraryViewModel::forgetSearches,
+                                    onSubmit = libraryViewModel::rememberSearch,
+                                )
+
+                                Screen.SettingsSearch -> SettingsSearchScreen(
+                                    onPick = { entry ->
+                                        // The result opens the page it lives on, with the
+                                        // row it names already in view.
+                                        navigator.openFromDrawer(
+                                            Screen.SettingsGroup(
+                                                group = entry.group,
+                                                reveal = SettingsReveal.Row(entry.key),
+                                            )
+                                        )
+                                    },
+                                    onBack = navigator::pop,
+                                )
+
+                                Screen.Profile -> ProfileScreen(
+                                    profileViewModel = profileViewModel,
+                                    onBack = navigator::pop,
+                                )
+
+                                is Screen.SettingsGroup -> SettingsGroupScreen(
+                                    group = screen.group,
+                                    settings = settings,
+                                    onChange = settingsViewModel::change,
+                                    trackCount = tracks.size,
+                                    tracks = tracks,
+                                    scanning = scanning,
+                                    lastScanDropped = lastScanDropped,
+                                    onRescan = { libraryViewModel.refresh(force = true) },
+                                    onOpenStatistics = { navigator.push(Screen.Statistics) },
+                                    folders = folders,
+                                    onToggleFolder = { folder ->
+                                        // An excluded folder is a statement about the library,
+                                        // so it is written as soon as it is made.
+                                        settingsViewModel.change { chosen ->
+                                            chosen.copy(
+                                                excludedFolders = if (folder in chosen.excludedFolders) {
+                                                    chosen.excludedFolders - folder
+                                                } else {
+                                                    chosen.excludedFolders + folder
+                                                },
+                                            )
+                                        }
+                                    },
+                                    onBack = navigator::pop,
+                                    reveal = screen.reveal,
+                                )
+
+                                Screen.Statistics -> StatisticsScreen(
+                                    stats = libraryStats(
+                                        songs = tracks,
+                                        albumCount = albums.size,
+                                        artistCount = artists.size,
+                                        lovedIds = favoriteIds,
+                                        playlistCount = playlists.size,
+                                        playStats = playStats,
+                                    ),
+                                    mostPlayed = mostPlayed,
+                                    playingMediaId = playingMediaId,
+                                    onBack = navigator::pop,
+                                    onPlayTrack = { playerViewModel.play(listOf(it), 0) },
+                                )
+
+                                is Screen.AlbumDetail -> AlbumDetailScreen(
+                                    albumId = screen.albumId,
+                                    tracksForAlbum = libraryViewModel::tracksForAlbum,
+                                    playingMediaId = playingMediaId,
+                                    favoriteIds = favoriteIds,
+                                    onToggleLove = libraryViewModel::toggleLoved,
+                                    onPlayNext = playerViewModel::playNext,
+                                    onAddToQueue = playerViewModel::addToQueue,
+                                    onAddToPlaylist = { addTarget = it },
                                     onBack = navigator::pop,
                                     onPlay = { list, index -> playerViewModel.play(list, index) },
                                     onShuffle = { list -> playerViewModel.shuffleAll(list) },
+                                    onHideAlbum = { name ->
+                                        settingsViewModel.change {
+                                            it.copy(hiddenAlbums = it.hiddenAlbums.addingHiddenName(name))
+                                        }
+                                        navigator.pop()
+                                    },
+                                )
+
+                                is Screen.ArtistDetail -> ArtistDetailScreen(
+                                    artist = screen.artist,
+                                    tracksForArtist = libraryViewModel::tracksForArtist,
+                                    albumsForArtist = libraryViewModel::albumsForArtist,
+                                    playingMediaId = playingMediaId,
+                                    favoriteIds = favoriteIds,
+                                    onToggleLove = libraryViewModel::toggleLoved,
                                     onPlayNext = playerViewModel::playNext,
                                     onAddToQueue = playerViewModel::addToQueue,
-                                    onRemove = { trackId ->
-                                        libraryViewModel.removeFromPlaylist(screen.playlistId, trackId)
+                                    onAddToPlaylist = { addTarget = it },
+                                    onBack = navigator::pop,
+                                    onAlbumClick = { navigator.push(Screen.AlbumDetail(it.albumId)) },
+                                    onPlay = { list, index -> playerViewModel.play(list, index) },
+                                    onShuffle = { list -> playerViewModel.shuffleAll(list) },
+                                    onHideArtist = { name ->
+                                        settingsViewModel.change {
+                                            it.copy(hiddenArtists = it.hiddenArtists.addingHiddenName(name))
+                                        }
+                                        navigator.pop()
                                     },
-                                    onMove = { trackId, toIndex ->
-                                        libraryViewModel.moveInPlaylist(
-                                            screen.playlistId,
-                                            trackId,
-                                            toIndex,
-                                        )
-                                    },
-                                    onRename = { renameTarget = playlist },
-                                    onDelete = { deleteTarget = playlist },
                                 )
-                            }
 
-                            is Screen.GenreDetail -> TrackListScreen(
-                                title = screen.genre,
-                                tracks = tracksOf(screen.genre, libraryViewModel::tracksInGenre),
-                                playingMediaId = playingMediaId,
-                                favoriteIds = favoriteIds,
-                                onBack = navigator::pop,
-                                onPlay = { list, index -> playerViewModel.play(list, index) },
-                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
-                                onToggleLove = libraryViewModel::toggleLoved,
-                                onPlayNext = playerViewModel::playNext,
-                                onAddToQueue = playerViewModel::addToQueue,
-                                onAddToPlaylist = { addTarget = it },
-                                emptyMessage = "No songs are filed under this genre.",
-                            )
+                                is Screen.PlaylistDetail -> {
+                                    val playlist = playlists.firstOrNull { it.id == screen.playlistId }
+                                    PlaylistDetailScreen(
+                                        playlistId = screen.playlistId,
+                                        name = playlist?.name ?: "Playlist",
+                                        tracksForPlaylist = libraryViewModel::tracksInPlaylist,
+                                        playingMediaId = playingMediaId,
+                                        onBack = navigator::pop,
+                                        onPlay = { list, index -> playerViewModel.play(list, index) },
+                                        onShuffle = { list -> playerViewModel.shuffleAll(list) },
+                                        onPlayNext = playerViewModel::playNext,
+                                        onAddToQueue = playerViewModel::addToQueue,
+                                        onRemove = { trackId ->
+                                            libraryViewModel.removeFromPlaylist(screen.playlistId, trackId)
+                                        },
+                                        onMove = { trackId, toIndex ->
+                                            libraryViewModel.moveInPlaylist(
+                                                screen.playlistId,
+                                                trackId,
+                                                toIndex,
+                                            )
+                                        },
+                                        onRename = { renameTarget = playlist },
+                                        onDelete = { deleteTarget = playlist },
+                                    )
+                                }
 
-                            is Screen.ComposerDetail -> TrackListScreen(
-                                title = screen.composer,
-                                tracks = tracksOf(screen.composer, libraryViewModel::tracksByComposer),
-                                playingMediaId = playingMediaId,
-                                favoriteIds = favoriteIds,
-                                onBack = navigator::pop,
-                                onPlay = { list, index -> playerViewModel.play(list, index) },
-                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
-                                onToggleLove = libraryViewModel::toggleLoved,
-                                onPlayNext = playerViewModel::playNext,
-                                onAddToQueue = playerViewModel::addToQueue,
-                                onAddToPlaylist = { addTarget = it },
-                                emptyMessage = "No songs are credited to this composer.",
-                            )
-
-                            is Screen.YearDetail -> TrackListScreen(
-                                title = screen.year.toString(),
-                                tracks = tracksOf(screen.year, libraryViewModel::tracksInYear),
-                                playingMediaId = playingMediaId,
-                                favoriteIds = favoriteIds,
-                                onBack = navigator::pop,
-                                onPlay = { list, index -> playerViewModel.play(list, index) },
-                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
-                                onToggleLove = libraryViewModel::toggleLoved,
-                                onPlayNext = playerViewModel::playNext,
-                                onAddToQueue = playerViewModel::addToQueue,
-                                onAddToPlaylist = { addTarget = it },
-                                emptyMessage = "No songs are tagged with this year.",
-                            )
-
-                            is Screen.FolderDetail -> {
-                                val name = screen.folder.substringAfterLast('/').ifEmpty { screen.folder }
-                                TrackListScreen(
-                                    title = name,
-                                    // The whole path, because two folders can share a last
-                                    // segment. Falls back to the song count when it is just
-                                    // the folder's own name again.
-                                    subtitle = screen.folder.takeIf { it != name },
-                                    tracks = tracksOf(screen.folder, libraryViewModel::tracksInFolder),
+                                is Screen.GenreDetail -> TrackListScreen(
+                                    title = screen.genre,
+                                    tracks = tracksOf(screen.genre, libraryViewModel::tracksInGenre),
                                     playingMediaId = playingMediaId,
                                     favoriteIds = favoriteIds,
                                     onBack = navigator::pop,
@@ -473,82 +518,158 @@ private fun MimiAppContent() {
                                     onPlayNext = playerViewModel::playNext,
                                     onAddToQueue = playerViewModel::addToQueue,
                                     onAddToPlaylist = { addTarget = it },
-                                    emptyMessage = "This folder holds no music.",
+                                    emptyMessage = "No songs are filed under this genre.",
                                 )
-                            }
 
-                            is Screen.TrackInfo -> {
-                                val track = tracks.firstOrNull { it.id == screen.trackId }
-                                TrackInfoScreen(
-                                    track = track,
-                                    stat = playStats[screen.trackId],
+                                is Screen.ComposerDetail -> TrackListScreen(
+                                    title = screen.composer,
+                                    tracks = tracksOf(screen.composer, libraryViewModel::tracksByComposer),
                                     playingMediaId = playingMediaId,
+                                    favoriteIds = favoriteIds,
                                     onBack = navigator::pop,
-                                    onPlay = { track?.let { playerViewModel.play(listOf(it), 0) } },
-                                    onPlayNext = { track?.let(playerViewModel::playNext) },
-                                    onAddToQueue = { track?.let(playerViewModel::addToQueue) },
-                                    onAddToPlaylist = { track?.let { addTarget = it } },
-                                    onShare = { track?.let(::share) },
-                                    onGoToAlbum = {
-                                        track?.let {
-                                            navigator.pop()
-                                            navigator.push(Screen.AlbumDetail(it.albumId))
-                                        }
-                                    },
-                                    onGoToArtist = {
-                                        track?.let {
-                                            splitCredits(it.artist, settings.creditSeparators)
-                                                .firstOrNull()
-                                                ?.let { artist ->
-                                                    navigator.pop()
-                                                    navigator.push(Screen.ArtistDetail(artist))
-                                                }
-                                        }
-                                    },
+                                    onPlay = { list, index -> playerViewModel.play(list, index) },
+                                    onShuffle = { list -> playerViewModel.shuffleAll(list) },
+                                    onToggleLove = libraryViewModel::toggleLoved,
+                                    onPlayNext = playerViewModel::playNext,
+                                    onAddToQueue = playerViewModel::addToQueue,
+                                    onAddToPlaylist = { addTarget = it },
+                                    emptyMessage = "No songs are credited to this composer.",
                                 )
+
+                                is Screen.YearDetail -> TrackListScreen(
+                                    title = screen.year.toString(),
+                                    tracks = tracksOf(screen.year, libraryViewModel::tracksInYear),
+                                    playingMediaId = playingMediaId,
+                                    favoriteIds = favoriteIds,
+                                    onBack = navigator::pop,
+                                    onPlay = { list, index -> playerViewModel.play(list, index) },
+                                    onShuffle = { list -> playerViewModel.shuffleAll(list) },
+                                    onToggleLove = libraryViewModel::toggleLoved,
+                                    onPlayNext = playerViewModel::playNext,
+                                    onAddToQueue = playerViewModel::addToQueue,
+                                    onAddToPlaylist = { addTarget = it },
+                                    emptyMessage = "No songs are tagged with this year.",
+                                )
+
+                                is Screen.FolderDetail -> {
+                                    val name = screen.folder.substringAfterLast('/').ifEmpty { screen.folder }
+                                    TrackListScreen(
+                                        title = name,
+                                        // The whole path, because two folders can share a last
+                                        // segment. Falls back to the song count when it is just
+                                        // the folder's own name again.
+                                        subtitle = screen.folder.takeIf { it != name },
+                                        tracks = tracksOf(screen.folder, libraryViewModel::tracksInFolder),
+                                        playingMediaId = playingMediaId,
+                                        favoriteIds = favoriteIds,
+                                        onBack = navigator::pop,
+                                        onPlay = { list, index -> playerViewModel.play(list, index) },
+                                        onShuffle = { list -> playerViewModel.shuffleAll(list) },
+                                        onToggleLove = libraryViewModel::toggleLoved,
+                                        onPlayNext = playerViewModel::playNext,
+                                        onAddToQueue = playerViewModel::addToQueue,
+                                        onAddToPlaylist = { addTarget = it },
+                                        emptyMessage = "This folder holds no music.",
+                                    )
+                                }
+
+                                is Screen.TrackInfo -> {
+                                    val track = tracks.firstOrNull { it.id == screen.trackId }
+                                    TrackInfoScreen(
+                                        track = track,
+                                        stat = playStats[screen.trackId],
+                                        playingMediaId = playingMediaId,
+                                        onBack = navigator::pop,
+                                        onPlay = { track?.let { playerViewModel.play(listOf(it), 0) } },
+                                        onPlayNext = { track?.let(playerViewModel::playNext) },
+                                        onAddToQueue = { track?.let(playerViewModel::addToQueue) },
+                                        onAddToPlaylist = { track?.let { addTarget = it } },
+                                        onShare = { track?.let(::share) },
+                                        onGoToAlbum = {
+                                            track?.let {
+                                                navigator.pop()
+                                                navigator.push(Screen.AlbumDetail(it.albumId))
+                                            }
+                                        },
+                                        onGoToArtist = {
+                                            track?.let {
+                                                splitCredits(it.artist, settings.creditSeparators)
+                                                    .firstOrNull()
+                                                    ?.let { artist ->
+                                                        navigator.pop()
+                                                        navigator.push(Screen.ArtistDetail(artist))
+                                                    }
+                                            }
+                                        },
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    if (picked.isNotEmpty()) {
-                        SelectionBar(
-                            count = picked.size,
-                            onClose = { picked = emptySet() },
-                            onLove = {
-                                // One button for both directions: if everything picked is
-                                // already loved it un-loves, and otherwise it loves what is
-                                // not, so a second press undoes the first.
-                                val allLoved = pickedTracks.isNotEmpty() &&
-                                    pickedTracks.all { it.id in favoriteIds }
-                                pickedTracks.forEach { track ->
-                                    if ((track.id in favoriteIds) == allLoved) {
-                                        libraryViewModel.toggleLoved(track.id)
+                        if (picked.isNotEmpty()) {
+                            SelectionBar(
+                                count = picked.size,
+                                onClose = { picked = emptySet() },
+                                onLove = {
+                                    // One button for both directions: if everything picked is
+                                    // already loved it un-loves, and otherwise it loves what is
+                                    // not, so a second press undoes the first.
+                                    val allLoved = pickedTracks.isNotEmpty() &&
+                                        pickedTracks.all { it.id in favoriteIds }
+                                    pickedTracks.forEach { track ->
+                                        if ((track.id in favoriteIds) == allLoved) {
+                                            libraryViewModel.toggleLoved(track.id)
+                                        }
                                     }
-                                }
-                                picked = emptySet()
-                            },
-                            onAddToPlaylist = { addManyToPlaylist = pickedTracks },
-                            onAddToQueue = {
-                                pickedTracks.forEach(playerViewModel::addToQueue)
-                                picked = emptySet()
-                            },
-                        )
-                    } else if (hasTrack) {
-                        MiniPlayer(
-                            state = playback,
-                            onExpand = { showNowPlaying = true },
-                            onPlayPause = playerViewModel::togglePlayPause,
-                            onNext = playerViewModel::next,
-                        )
-                    }
+                                    picked = emptySet()
+                                },
+                                onAddToPlaylist = { addManyToPlaylist = pickedTracks },
+                                onAddToQueue = {
+                                    pickedTracks.forEach(playerViewModel::addToQueue)
+                                    picked = emptySet()
+                                },
+                            )
+                        } else if (hasTrack) {
+                            MiniPlayer(
+                                state = playback,
+                                onExpand = { showNowPlaying = true },
+                                onPlayPause = playerViewModel::togglePlayPause,
+                                onNext = playerViewModel::next,
+                            )
+                        }
 
-                    NavigationBar {
-                        Tabs.forEach { tab ->
+                        NavigationBar {
+                            Tabs.forEach { tab ->
+                                NavigationBarItem(
+                                    selected = navigator.rootTab == tab.screen,
+                                    onClick = { navigator.selectTab(tab.screen) },
+                                    icon = { Icon(imageVector = tab.icon, contentDescription = null) },
+                                    label = { Text(tab.label) },
+                                )
+                            }
+                            // The fifth item is not a destination but the way into the
+                            // drawer, so it lights up while the drawer is out and not for
+                            // whatever page is behind it. The avatar, when there is one,
+                            // makes the whole of settings read as "yours" rather than as
+                            // a wrench in the corner.
                             NavigationBarItem(
-                                selected = navigator.rootTab == tab.screen,
-                                onClick = { navigator.selectTab(tab.screen) },
-                                icon = { Icon(imageVector = tab.icon, contentDescription = null) },
-                                label = { Text(tab.label) },
+                                selected = drawerState.isOpen,
+                                onClick = { scope.launch { drawerState.open() } },
+                                icon = {
+                                    if (navAvatar != null) {
+                                        Image(
+                                            bitmap = navAvatar,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape),
+                                        )
+                                    } else {
+                                        Icon(imageVector = Lucide.User, contentDescription = null)
+                                    }
+                                },
+                                label = { Text("Profile") },
                             )
                         }
                     }
@@ -779,10 +900,15 @@ private fun LibraryHome(
 
 private class Tab(val screen: Screen, val label: String, val icon: ImageVector)
 
+/**
+ * The destinations in the navigation bar.
+ *
+ * The fifth item is not here on purpose: it opens the drawer rather than going somewhere,
+ * so it has no screen to be lit for and is drawn beside these rather than from this list.
+ */
 private val Tabs = listOf(
     Tab(Screen.Home, "Home", Lucide.House),
     Tab(Screen.Library, "Library", Lucide.Music),
     Tab(Screen.Loved, "Loved", Lucide.Heart),
     Tab(Screen.Search, "Search", Lucide.Search),
-    Tab(Screen.Settings, "Settings", Lucide.Settings),
 )

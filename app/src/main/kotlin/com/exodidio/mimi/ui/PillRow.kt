@@ -18,10 +18,10 @@ import androidx.compose.ui.unit.dp
 /**
  * A row of pills, one of which is chosen.
  *
- * Used both to slice the library and to move between the settings pages, because those are
- * the same idea twice: picking one of a handful of views without leaving where you are.
- * The row scrolls sideways rather than wrapping, so a phone that cannot fit every option
- * still reaches all of them, and a wider phone simply shows them all.
+ * Used to slice the library, because that is a handful of views over one collection and
+ * picking one should not leave where you are. The row scrolls sideways rather than
+ * wrapping, so a phone that cannot fit every option still reaches all of them, and a wider
+ * phone simply shows them all.
  */
 @Composable
 fun <T> PillRow(

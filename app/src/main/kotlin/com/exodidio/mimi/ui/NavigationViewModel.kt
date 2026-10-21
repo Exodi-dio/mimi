@@ -79,6 +79,25 @@ class NavigationViewModel : ViewModel() {
         stack = stack + screen
     }
 
+    /**
+     * Opens a destination from the drawer without leaving a trail behind it.
+     *
+     * Walking the drawer is one decision after another, so a settings page that is already
+     * open is replaced rather than stacked on top of itself. The back button then returns
+     * to the list the drawer was opened from instead of walking back through every page
+     * glanced at on the way.
+     */
+    fun openFromDrawer(screen: Screen) {
+        val settingsOpen = current is Screen.SettingsGroup ||
+            current is Screen.SettingsSearch ||
+            current is Screen.Profile
+        stack = if (settingsOpen && stack.size > 1) {
+            stack.dropLast(1) + screen
+        } else {
+            stack + screen
+        }
+    }
+
     fun pop() {
         if (canGoBack) stack = stack.dropLast(1)
     }
