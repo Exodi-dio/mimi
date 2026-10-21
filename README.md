@@ -23,11 +23,13 @@ and it is not meant to be.
 | Playlists: make, rename, delete, add, remove and reorder songs | Branding / app icon |
 | Songs sorted by title, artist, album, length, date added or file name, ties broken predictably | R8 shrinking |
 | Albums sorted by name, album artist or song count; artists by name, albums or song count | |
+| Every list header counts its songs and running time, with sort and in-list search beside it | |
 | Loved songs, with a shelf of their own on the home screen | |
 | Search across titles, artists and albums, with recent searches offered back | |
 | Play / pause / next / previous / seek, and a ten second step either way | |
 | Shuffle, repeat off/all/one, playback speed, sleep timer (including end of track) | |
 | Play or shuffle any album, artist, genre, year, folder or playlist | |
+| Play or shuffle the loved songs, and pick a random album from the grid | |
 | Up next queue: reorder, jump, remove, play next, add to queue, clear what is coming | |
 | Keep the queue as a playlist | |
 | Equaliser with a switch and seven presets, spread across however many bands the device has | |
@@ -45,6 +47,10 @@ and it is not meant to be.
 | Everything known about a song on one screen, and sharing its file | |
 | Pick several songs at once and love them, queue them or put them in a playlist | |
 | Folders left out of the library without deleting anything | |
+| Artists and albums hidden from every list, search and count without deleting anything | |
+| A duplicate finder that groups copies by title, artist and length, and only reports them | |
+| Each library section remembers where it was scrolled to, and starts afresh when the order changes | |
+| Swiping between artwork, lyrics and queue, and a full-screen cover on tap | |
 | Settings in tabs: library, playback, appearance, about | |
 
 ## Stack
