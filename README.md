@@ -26,7 +26,7 @@ and it is not meant to be.
 | Every list header counts its songs and running time, with sort and in-list search beside it | |
 | Loved songs, with a shelf of their own on the home screen | |
 | Search across titles, artists and albums, with recent searches offered back | |
-| Play / pause / next / previous / seek, and a ten second step either way | |
+| Play / pause / next / previous / seek, with a draggable progress rule and a bead at its head | |
 | Shuffle, repeat off/all/one, playback speed, sleep timer (including end of track) | |
 | Play or shuffle any album, artist, genre, year, folder or playlist | |
 | Play or shuffle the loved songs, and pick a random album from the grid | |
@@ -39,7 +39,11 @@ and it is not meant to be.
 | Transliterated lyrics, switched by a button over the words, working with no connection | |
 | One credit line split into the artists and genres actually on it, with each list of separators editable | |
 | Background playback, notification, lock screen | |
-| Mini player with a progress rule, and a Now Playing screen with artwork, lyrics and queue faces | |
+| Mini player with a progress rule, and a Now Playing screen where the lyrics are the screen | |
+| The line being sung in the middle of the words, with the lines around it fading away from it | |
+| The song's name and artist under the words, and the cover in their place when a song has no lyrics | |
+| A volume slider and a file format line, both switched on from the Now playing settings page | |
+| The queue behind its own button on the Now Playing screen, and a sideways swipe that reaches it | |
 | Extra previous/next buttons in the mini player, switched from Now playing settings | |
 | Resume last track, position, shuffle and repeat | |
 | Keep shuffle mode across a new list, or start every list unshuffled | |
@@ -57,7 +61,7 @@ and it is not meant to be.
 | Artists and albums hidden from every list, search and count without deleting anything | |
 | A duplicate finder that groups copies by title, artist and length, and only reports them | |
 | Each library section remembers where it was scrolled to, and starts afresh when the order changes | |
-| Swiping between artwork, lyrics and queue, and a full-screen cover on tap | |
+| A full-screen cover on tap, from the Now Playing screen | |
 | A profile at the top right of the home screen: a name, a picture and a banner, kept on the device with no account | |
 | A drawer of nine destinations, with counts on Library and Folders and nothing profile-shaped in it | |
 | Settings behind one drawer row: an index, eight pages, and a search that opens the page with the row in view | |

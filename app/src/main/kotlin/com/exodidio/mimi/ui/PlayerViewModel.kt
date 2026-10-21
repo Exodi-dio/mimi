@@ -141,19 +141,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /**
-     * Nudges playback by [deltaMs], kept inside the song.
-     *
-     * The step buttons are the difference between a player that is occasionally useful and
-     * one that is not, for anything long enough that finding a spot by dragging is fiddly.
-     */
-    fun seekBy(deltaMs: Long) {
-        val snapshot = engine.state.value
-        val target = (snapshot.positionMs + deltaMs).coerceAtLeast(0L)
-        engine.seekTo(if (snapshot.durationMs > 0L) target.coerceAtMost(snapshot.durationMs) else target)
-    }
-
     fun setSpeed(speed: Float) = engine.setSpeed(speed)
+
+    /**
+     * How loud the music plays.
+     *
+     * The level is the device's own, so it is remembered by the phone rather than by
+     * this app: it is the same level the music plays at everywhere else.
+     */
+    fun setVolume(volume: Float) = engine.setVolume(volume)
 
     /** What is left of the sleep timer, or null when it is not running. */
     val sleepRemaining: StateFlow<Long?> = sleepTimer.remaining

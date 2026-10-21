@@ -2,6 +2,7 @@ package com.exodidio.mimi.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.media.AudioManager
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -11,6 +12,7 @@ import androidx.media3.session.SessionToken
 import com.exodidio.mimi.library.Track
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -36,6 +38,9 @@ class Media3PlaybackEngine(
 
     private var controller: MediaController? = null
     private var ticker: Job? = null
+
+    /** The device's own mixer, which is what a volume slider moves. */
+    private val audioManager: AudioManager? = context.getSystemService(AudioManager::class.java)
 
     /**
      * The queue is read from the session one item at a time, and every read crosses a
@@ -147,6 +152,37 @@ class Media3PlaybackEngine(
         controller?.setPlaybackSpeed(speed.coerceIn(MIN_SPEED, MAX_SPEED))
     }
 
+    /**
+     * How loud the music plays.
+     *
+     * The player inside the service owns its own volume for the sleep timer's fade and
+     * for ducking under a notification, so the level a listener sets is moved on the
+     * music stream instead. The two then multiply rather than overwrite each other: a
+     * fade still ends in silence rather than in the level the listener chose, and the
+     * level the listener chose survives the next notification.
+     */
+    override fun setVolume(volume: Float) {
+        val manager = audioManager ?: return
+        val level = volume.coerceIn(0f, 1f)
+        val max = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        runCatching {
+            manager.setStreamVolume(AudioManager.STREAM_MUSIC, (level * max).roundToInt(), 0)
+        }
+    }
+
+    /**
+     * The music stream's level, as a fraction of the loudest it will go.
+     *
+     * Read from the device rather than remembered, so a change made with the volume
+     * keys is reflected by the slider the next time the player is opened.
+     */
+    private fun streamVolume(): Float {
+        val manager = audioManager ?: return 1f
+        val max = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        return (manager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max)
+            .coerceIn(0f, 1f)
+    }
+
     override fun playNext(track: Track) {
         val player = controller ?: return
         // Straight after whatever is playing, so it survives the current track ending
@@ -230,6 +266,7 @@ class Media3PlaybackEngine(
             shuffleEnabled = player.shuffleModeEnabled,
             repeatMode = player.repeatMode.toRepeatMode(),
             speed = player.playbackParameters.speed.coerceIn(MIN_SPEED, MAX_SPEED),
+            volume = streamVolume(),
             queue = cachedQueue,
             currentIndex = if (player.mediaItemCount == 0) -1 else player.currentMediaItemIndex,
         )

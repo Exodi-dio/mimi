@@ -144,9 +144,10 @@ private fun MimiAppContent() {
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 
-    // Which face the player shows: the artwork, the words, or what is coming up. The skin
-    // turns this into a swipe between pages, but it flips the same state either way.
-    var playerFace by rememberSaveable { mutableStateOf(PlayerFace.ARTWORK) }
+    // Whether the player is showing the queue rather than the words. The queue sits
+    // behind its own button now, and this remembers that so the drawer can open the
+    // player straight onto it.
+    var playerShowsQueue by rememberSaveable { mutableStateOf(false) }
 
     // Which song is waiting to be put in a playlist, if any.
     var addTarget by remember { mutableStateOf<Track?>(null) }
@@ -176,7 +177,7 @@ private fun MimiAppContent() {
      */
     fun closePlayerTo(destination: Screen, section: LibrarySection) {
         showNowPlaying = false
-        playerFace = PlayerFace.ARTWORK
+        playerShowsQueue = false
         navigator.selectTab(Screen.Library)
         navigator.selectSection(section)
         navigator.push(destination)
@@ -225,6 +226,7 @@ private fun MimiAppContent() {
             // navigation stack does.
             BackHandler(enabled = !drawerState.isOpen && showNowPlaying) {
                 showNowPlaying = false
+                playerShowsQueue = false
             }
             BackHandler(
                 enabled = !drawerState.isOpen && !showNowPlaying && navigator.canGoBack
@@ -233,18 +235,26 @@ private fun MimiAppContent() {
             }
 
             if (showNowPlaying && hasTrack) {
+                // The song that is playing, found by the same uri the player names it by.
+                // Everything the player shows about the song rather than about the words
+                // comes from this row: the cover, the album, the artist and whether it is
+                // loved.
+                val playingTrack = tracks.firstOrNull { it.contentUri == playback.current?.mediaId }
+
                 NowPlayingScreen(
                     state = playback,
-                    onClose = { showNowPlaying = false; playerFace = PlayerFace.ARTWORK },
+                    onClose = { showNowPlaying = false; playerShowsQueue = false },
                     onPlayPause = playerViewModel::togglePlayPause,
                     onNext = playerViewModel::next,
                     onPrevious = playerViewModel::previous,
                     onSeek = playerViewModel::seekTo,
-                    onSeekBy = playerViewModel::seekBy,
                     onToggleShuffle = playerViewModel::toggleShuffle,
                     onCycleRepeat = playerViewModel::cycleRepeat,
-                    face = playerFace,
-                    onShowFace = { playerFace = it },
+                    onVolumeChange = playerViewModel::setVolume,
+                    isLoved = playingTrack != null && playingTrack.id in favoriteIds,
+                    onToggleLove = { playingTrack?.let { libraryViewModel.toggleLoved(it.id) } },
+                    queueOpen = playerShowsQueue,
+                    onQueueOpenChange = { playerShowsQueue = it },
                     onQueueItemClick = playerViewModel::jumpToQueueItem,
                     onQueueMoveUp = { index -> playerViewModel.moveInQueue(index, index - 1) },
                     onQueueMoveDown = { index -> playerViewModel.moveInQueue(index, index + 1) },
@@ -290,7 +300,7 @@ private fun MimiAppContent() {
                         AppDrawer(
                             current = screen,
                             librarySection = navigator.librarySection,
-                            queueOpen = showNowPlaying && playerFace == PlayerFace.QUEUE,
+                            queueOpen = showNowPlaying && playerShowsQueue,
                             songCount = tracks.size,
                             folderCount = folders.size,
                             onOpenLibrary = {
@@ -306,7 +316,9 @@ private fun MimiAppContent() {
                             onOpenQueue = {
                                 closeDrawer()
                                 if (hasTrack) {
-                                    playerFace = PlayerFace.QUEUE
+                                    // The queue opens straight away rather than behind
+                                    // another tap, because this row is named for it.
+                                    playerShowsQueue = true
                                     showNowPlaying = true
                                 }
                             },

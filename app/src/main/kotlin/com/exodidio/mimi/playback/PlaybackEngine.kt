@@ -41,6 +41,8 @@ data class PlaybackState(
     val repeatMode: RepeatMode = RepeatMode.OFF,
     /** How fast the music runs, as a multiple of normal speed. */
     val speed: Float = 1f,
+    /** How loud the music is, as a fraction of the full volume. */
+    val volume: Float = 1f,
     /** Everything loaded, in play order. [current] is this list at [currentIndex]. */
     val queue: List<QueueItem> = emptyList(),
     /** Where [current] sits in [queue], or -1 when nothing is loaded. */
@@ -77,6 +79,13 @@ interface PlaybackEngine {
 
     /** How fast to play, as a multiple of normal speed. */
     fun setSpeed(speed: Float)
+
+    /**
+     * How loud to play, as a fraction of the full volume.
+     *
+     * Zero is silence and one is as loud as the device will go.
+     */
+    fun setVolume(volume: Float)
 
     /** Puts [track] straight after the one playing, without interrupting it. */
     fun playNext(track: Track)

@@ -9,9 +9,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,22 +23,29 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,39 +53,55 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.ChevronLeft
 import com.composables.icons.lucide.Disc3
 import com.composables.icons.lucide.Ellipsis
 import com.composables.icons.lucide.Gauge
+import com.composables.icons.lucide.Heart
+import com.composables.icons.lucide.ListEnd
 import com.composables.icons.lucide.ListMusic
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MicVocal
 import com.composables.icons.lucide.Music
-import com.composables.icons.lucide.Pause
-import com.composables.icons.lucide.Play
-import com.composables.icons.lucide.Repeat
-import com.composables.icons.lucide.Repeat1
 import com.composables.icons.lucide.Search
-import com.composables.icons.lucide.Shuffle
 import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
-import com.composables.icons.lucide.Timer
 import com.exodidio.mimi.lyrics.LyricsQuery
+import com.exodidio.mimi.library.SongFormat
+import com.exodidio.mimi.library.readSongFormat
 import com.exodidio.mimi.playback.PlaybackState
+import com.exodidio.mimi.playback.QueueItem
 import com.exodidio.mimi.playback.RepeatMode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 /**
- * Deliberately plain: artwork, title, artist, scrubber and transport.
- * The Apple Music inspired silhouette replaces this once playback is trusted.
+ * The player.
  *
- * The header carries only a way out and a menu; the two faces the listener flips between
- * sit with the transport, where a thumb already is.
+ * The words are the screen. The line being sung sits in the middle of the block with the
+ * lines around it fading away from it, the song's name and artist sit underneath, and
+ * the transport, the scrubber and the player's own row of actions follow. The app's
+ * bottom navigation is not drawn while this is up: the player takes the whole screen and
+ * the row at the bottom belongs to the song rather than to the app.
+ *
+ * The cover is not shown while there are words to read. It takes the place of the words
+ * when the song has none, and a tap on it opens it full screen, which is the only way
+ * the artwork is seen at full size now that the artwork face is gone.
+ *
+ * The queue moved behind the queue button, since a face that had to be swiped to was a
+ * face that was never found. The sideways swipe over the words still works and reaches
+ * the same place, and it does not fight the lyrics: the gesture is only claimed once it
+ * is clearly sideways.
  */
 @Composable
 fun NowPlayingScreen(
@@ -84,17 +111,13 @@ fun NowPlayingScreen(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onSeek: (Long) -> Unit,
-    onSeekBy: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
-    face: PlayerFace,
-    onShowFace: (PlayerFace) -> Unit,
-    onQueueItemClick: (Int) -> Unit,
-    onQueueMoveUp: (Int) -> Unit,
-    onQueueMoveDown: (Int) -> Unit,
-    onQueueRemove: (Int) -> Unit,
-    onSaveQueue: () -> Unit,
-    onClearUpcoming: () -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    isLoved: Boolean,
+    onToggleLove: () -> Unit,
+    queueOpen: Boolean,
+    onQueueOpenChange: (Boolean) -> Unit,
     sleepRemaining: Long?,
     sleepAtEndOfTrack: Boolean,
     onStartSleepTimer: (Long) -> Unit,
@@ -103,6 +126,12 @@ fun NowPlayingScreen(
     onSetSpeed: (Float) -> Unit,
     onGoToAlbum: () -> Unit,
     onGoToArtist: () -> Unit,
+    onQueueItemClick: (Int) -> Unit,
+    onQueueMoveUp: (Int) -> Unit,
+    onQueueMoveDown: (Int) -> Unit,
+    onQueueRemove: (Int) -> Unit,
+    onSaveQueue: () -> Unit,
+    onClearUpcoming: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val current = state.current
@@ -111,79 +140,61 @@ fun NowPlayingScreen(
     var lyricsVersion by remember { mutableStateOf(0) }
     val lyricsState = rememberLyrics(mediaId = current?.mediaId, version = lyricsVersion)
 
-    var menuOpen by remember { mutableStateOf(false) }
+    var menuAnchor by remember { mutableStateOf<MenuAnchor?>(null) }
     var dialog by remember { mutableStateOf<PlayerDialog?>(null) }
     var findingLyrics by remember { mutableStateOf(false) }
+    var queueSheetOpen by remember { mutableStateOf(false) }
+
+    val settings = LocalSettings.current
+    val formatLine = rememberSongFormatLine(current?.mediaId)
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(horizontal = 24.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // A slim header: a way out on the left and the menu on the right. Nothing else,
+        // because the song's own name is the title and it sits further down the screen.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
             IconButton(onClick = onClose) {
-                Icon(Lucide.ChevronDown, contentDescription = "Close player")
+                Icon(Lucide.ChevronLeft, contentDescription = "Close player")
             }
-            Text(
-                text = "Now Playing",
-                style = MaterialTheme.typography.labelLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f),
-            )
+            Spacer(Modifier.weight(1f))
             Box {
-                IconButton(onClick = { menuOpen = true }) {
+                IconButton(onClick = { menuAnchor = MenuAnchor.HEADER }) {
                     Icon(Lucide.Ellipsis, contentDescription = "More options")
                 }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text(sleepLabel(sleepRemaining)) },
-                        leadingIcon = { Icon(Lucide.Timer, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            dialog = PlayerDialog.SLEEP
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Playback speed") },
-                        leadingIcon = { Icon(Lucide.Gauge, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            dialog = PlayerDialog.SPEED
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Find lyrics") },
-                        leadingIcon = { Icon(Lucide.Search, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            findingLyrics = true
-                        },
-                    )
-                    if (!current?.album.isNullOrBlank()) {
-                        DropdownMenuItem(
-                            text = { Text("Go to album") },
-                            leadingIcon = { Icon(Lucide.Disc3, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onGoToAlbum()
-                            },
-                        )
-                    }
-                    if (!current?.artist.isNullOrBlank()) {
-                        DropdownMenuItem(
-                            text = { Text("Go to artist") },
-                            leadingIcon = { Icon(Lucide.MicVocal, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onGoToArtist()
-                            },
-                        )
-                    }
-                }
+                PlayerMenu(
+                    expanded = menuAnchor == MenuAnchor.HEADER,
+                    onDismiss = { menuAnchor = null },
+                    sleepRemaining = sleepRemaining,
+                    onSleepTimer = {
+                        menuAnchor = null
+                        dialog = PlayerDialog.SLEEP
+                    },
+                    onSpeed = {
+                        menuAnchor = null
+                        dialog = PlayerDialog.SPEED
+                    },
+                    onFindLyrics = {
+                        menuAnchor = null
+                        findingLyrics = true
+                    },
+                    canGoToAlbum = !current?.album.isNullOrBlank(),
+                    canGoToArtist = !current?.artist.isNullOrBlank(),
+                    onGoToAlbum = {
+                        menuAnchor = null
+                        onGoToAlbum()
+                    },
+                    onGoToArtist = {
+                        menuAnchor = null
+                        onGoToArtist()
+                    },
+                )
             }
         }
 
@@ -191,10 +202,10 @@ fun NowPlayingScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                // A horizontal swipe changes face; the detector only claims a gesture once
-                // it is clearly sideways, so a lyrics list keeps its vertical scrolling and
-                // the queue's arrow buttons keep their taps.
-                .pointerInput(face) {
+                // A horizontal swipe reaches the queue; the detector only claims a gesture
+                // once it is clearly sideways, so a lyrics list keeps its vertical
+                // scrolling and the queue's arrow buttons keep their taps.
+                .pointerInput(queueOpen) {
                     var travelled = 0f
                     detectHorizontalDragGestures(
                         onDragStart = { travelled = 0f },
@@ -202,27 +213,23 @@ fun NowPlayingScreen(
                         onDragCancel = { travelled = 0f },
                         onDragEnd = {
                             val threshold = 72.dp.toPx()
-                            if (abs(travelled) > threshold) {
-                                val direction = if (travelled < 0f) 1 else -1
-                                PlayerFace.entries.getOrNull(face.ordinal + direction)
-                                    ?.let(onShowFace)
-                            }
+                            if (abs(travelled) > threshold) onQueueOpenChange(!queueOpen)
                             travelled = 0f
                         },
                     )
                 },
         ) {
             AnimatedContent(
-                targetState = face,
+                targetState = queueOpen,
                 transitionSpec = {
-                    val forward = targetState.ordinal > initialState.ordinal
+                    val forward = targetState
                     slideInHorizontally { width -> if (forward) width else -width } togetherWith
                         slideOutHorizontally { width -> if (forward) -width else width }
                 },
-                label = "player face",
-            ) { shown ->
-                when (shown) {
-                    PlayerFace.QUEUE -> QueuePanel(
+                label = "player queue",
+            ) { showingQueue ->
+                if (showingQueue) {
+                    QueuePanel(
                         queue = state.queue,
                         currentIndex = state.currentIndex,
                         shuffled = state.shuffleEnabled,
@@ -234,8 +241,8 @@ fun NowPlayingScreen(
                         onClearUpcoming = onClearUpcoming,
                         modifier = Modifier.fillMaxSize(),
                     )
-
-                    PlayerFace.LYRICS -> when (val lyrics = lyricsState) {
+                } else {
+                    when (val lyrics = lyricsState) {
                         is LyricsState.Found -> LyricsPanel(
                             lyrics = lyrics.lyrics,
                             positionMs = state.positionMs,
@@ -244,119 +251,196 @@ fun NowPlayingScreen(
                         )
 
                         LyricsState.Loading -> LyricsMessage("Looking for lyrics\u2026")
-                        LyricsState.None -> MissingLyrics(modifier = Modifier.fillMaxSize())
-                    }
 
-                    PlayerFace.ARTWORK -> Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        AlbumArtwork(mediaId = current?.mediaId)
+                        LyricsState.None -> Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            AlbumArtwork(
+                                mediaId = current?.mediaId,
+                                modifier = Modifier.fillMaxWidth(0.62f),
+                            )
+                            Spacer(Modifier.height(20.dp))
+                            MissingLyrics()
+                        }
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        // The song's own name sits under the words rather than over them: the words are
+        // what the listener came for, and the name is what they already know.
+        Spacer(Modifier.height(28.dp))
 
         Text(
             text = current?.title.orEmpty(),
-            style = MaterialTheme.typography.headlineSmall,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text(
             text = current?.artist.orEmpty(),
-            style = MaterialTheme.typography.bodyMedium,
+            fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(Modifier.height(24.dp))
-
-        Scrubber(positionMs = state.positionMs, durationMs = state.durationMs, onSeek = onSeek)
-
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(20.dp))
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            IconButton(onClick = onToggleShuffle) {
-                Icon(
-                    imageVector = Lucide.Shuffle,
-                    contentDescription = if (state.shuffleEnabled) "Shuffle on" else "Shuffle off",
-                    tint = accent(state.shuffleEnabled),
-                )
-            }
-            IconButton(onClick = onPrevious, modifier = Modifier.size(56.dp)) {
-                Icon(
-                    imageVector = Lucide.SkipBack,
-                    contentDescription = "Previous",
-                    modifier = Modifier.size(36.dp),
-                )
-            }
-            FilledIconButton(onClick = onPlayPause, modifier = Modifier.size(68.dp)) {
-                Icon(
-                    imageVector = if (state.isPlaying) Lucide.Pause else Lucide.Play,
-                    contentDescription = if (state.isPlaying) "Pause" else "Play",
-                    modifier = Modifier.size(32.dp),
-                )
-            }
-            IconButton(onClick = onNext, modifier = Modifier.size(56.dp)) {
-                Icon(
-                    imageVector = Lucide.SkipForward,
-                    contentDescription = "Next",
-                    modifier = Modifier.size(36.dp),
-                )
-            }
             IconButton(onClick = onCycleRepeat) {
                 Icon(
                     imageVector = if (state.repeatMode == RepeatMode.ONE) Lucide.Repeat1 else Lucide.Repeat,
                     contentDescription = repeatDescription(state.repeatMode),
                     tint = accent(state.repeatMode != RepeatMode.OFF),
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            IconButton(onClick = onPrevious) {
+                Icon(
+                    imageVector = Lucide.SkipBack,
+                    contentDescription = "Previous",
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            FilledIconButton(
+                onClick = onPlayPause,
+                modifier = Modifier.size(64.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                ),
+            ) {
+                Icon(
+                    imageVector = if (state.isPlaying) Lucide.Pause else Lucide.Play,
+                    contentDescription = if (state.isPlaying) "Pause" else "Play",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(30.dp),
+                )
+            }
+            IconButton(onClick = onNext) {
+                Icon(
+                    imageVector = Lucide.SkipForward,
+                    contentDescription = "Next",
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            IconButton(onClick = onToggleShuffle) {
+                Icon(
+                    imageVector = Lucide.Shuffle,
+                    contentDescription = if (state.shuffleEnabled) "Shuffle on" else "Shuffle off",
+                    tint = accent(state.shuffleEnabled),
+                    modifier = Modifier.size(28.dp),
                 )
             }
         }
 
-        // The words and the queue were header icons; they belong within thumb reach of the
-        // transport, and the pair of step buttons fills the space either side of them.
+        Spacer(Modifier.height(16.dp))
+
+        ProgressLine(positionMs = state.positionMs, durationMs = state.durationMs, onSeek = onSeek)
+
+        // What the file says about itself, when the listener has asked to be told.
+        if (settings.showSongInfo) {
+            formatLine?.let { line ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = line,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        if (settings.showVolumeSlider) {
+            Spacer(Modifier.height(8.dp))
+            VolumeSlider(volume = state.volume, onVolumeChange = onVolumeChange)
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        // The player's own row of actions. It sits where the app's navigation would be,
+        // which is why the navigation is not drawn while this screen is up.
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.SpaceEvenly,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            TextButton(onClick = { onSeekBy(-STEP_MS) }) {
-                Text("\u221210s")
-            }
-            IconButton(
-                onClick = {
-                    onShowFace(if (face == PlayerFace.LYRICS) PlayerFace.ARTWORK else PlayerFace.LYRICS)
-                },
-            ) {
-                Icon(
-                    imageVector = Lucide.MicVocal,
-                    contentDescription = if (face == PlayerFace.LYRICS) "Hide lyrics" else "Show lyrics",
-                    tint = accent(face == PlayerFace.LYRICS),
-                )
-            }
-            IconButton(
-                onClick = {
-                    onShowFace(if (face == PlayerFace.QUEUE) PlayerFace.ARTWORK else PlayerFace.QUEUE)
-                },
-            ) {
+            IconButton(onClick = { onQueueOpenChange(!queueOpen) }) {
                 Icon(
                     imageVector = Lucide.ListMusic,
-                    contentDescription = if (face == PlayerFace.QUEUE) "Hide up next" else "Show up next",
-                    tint = accent(face == PlayerFace.QUEUE),
+                    contentDescription = "Queue",
+                    tint = accent(queueOpen),
                 )
             }
-            TextButton(onClick = { onSeekBy(STEP_MS) }) {
-                Text("+10s")
+            IconButton(onClick = onToggleLove) {
+                Icon(
+                    imageVector = Lucide.Heart,
+                    contentDescription = if (isLoved) "Remove from loved songs" else "Love this song",
+                    tint = if (isLoved) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+            IconButton(onClick = { dialog = PlayerDialog.SLEEP }) {
+                Icon(
+                    imageVector = Lucide.Timer,
+                    contentDescription = sleepLabel(sleepRemaining),
+                    tint = accent(sleepRemaining != null),
+                )
+            }
+            IconButton(onClick = { queueSheetOpen = true }) {
+                Icon(
+                    imageVector = Lucide.ListEnd,
+                    contentDescription = "Queue list",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Box {
+                IconButton(onClick = { menuAnchor = MenuAnchor.ACTIONS }) {
+                    Icon(Lucide.Ellipsis, contentDescription = "More options")
+                }
+                PlayerMenu(
+                    expanded = menuAnchor == MenuAnchor.ACTIONS,
+                    onDismiss = { menuAnchor = null },
+                    sleepRemaining = sleepRemaining,
+                    onSleepTimer = {
+                        menuAnchor = null
+                        dialog = PlayerDialog.SLEEP
+                    },
+                    onSpeed = {
+                        menuAnchor = null
+                        dialog = PlayerDialog.SPEED
+                    },
+                    onFindLyrics = {
+                        menuAnchor = null
+                        findingLyrics = true
+                    },
+                    canGoToAlbum = !current?.album.isNullOrBlank(),
+                    canGoToArtist = !current?.artist.isNullOrBlank(),
+                    onGoToAlbum = {
+                        menuAnchor = null
+                        onGoToAlbum()
+                    },
+                    onGoToArtist = {
+                        menuAnchor = null
+                        onGoToArtist()
+                    },
+                )
             }
         }
     }
@@ -417,13 +501,251 @@ fun NowPlayingScreen(
             onDismiss = { findingLyrics = false },
         )
     }
+
+    if (queueSheetOpen) {
+        QueueSheet(
+            queue = state.queue,
+            currentIndex = state.currentIndex,
+            shuffled = state.shuffleEnabled,
+            onItemClick = onQueueItemClick,
+            onMoveUp = onQueueMoveUp,
+            onMoveDown = onQueueMoveDown,
+            onRemove = onQueueRemove,
+            onSaveAsPlaylist = onSaveQueue,
+            onClearUpcoming = onClearUpcoming,
+            onDismiss = { queueSheetOpen = false },
+        )
+    }
 }
+
+/** Which of the two three-dot buttons has its menu open, if either. */
+private enum class MenuAnchor { HEADER, ACTIONS }
 
 /** Which sheet is open over the player, if any. */
 private enum class PlayerDialog { SLEEP, SPEED }
 
-/** How far the step buttons move, in milliseconds. */
-private const val STEP_MS = 10_000L
+/**
+ * The menu behind the three dots.
+ *
+ * Both three-dot buttons open this same list, because a listener who reaches for the
+ * menu at the bottom of the screen should not find a different menu there.
+ */
+@Composable
+private fun PlayerMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    sleepRemaining: Long?,
+    onSleepTimer: () -> Unit,
+    onSpeed: () -> Unit,
+    onFindLyrics: () -> Unit,
+    canGoToAlbum: Boolean,
+    canGoToArtist: Boolean,
+    onGoToAlbum: () -> Unit,
+    onGoToArtist: () -> Unit,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text(sleepLabel(sleepRemaining)) },
+            leadingIcon = { Icon(Lucide.Timer, contentDescription = null) },
+            onClick = onSleepTimer,
+        )
+        DropdownMenuItem(
+            text = { Text("Playback speed") },
+            leadingIcon = { Icon(Lucide.Gauge, contentDescription = null) },
+            onClick = onSpeed,
+        )
+        DropdownMenuItem(
+            text = { Text("Find lyrics") },
+            leadingIcon = { Icon(Lucide.Search, contentDescription = null) },
+            onClick = onFindLyrics,
+        )
+        if (canGoToAlbum) {
+            DropdownMenuItem(
+                text = { Text("Go to album") },
+                leadingIcon = { Icon(Lucide.Disc3, contentDescription = null) },
+                onClick = onGoToAlbum,
+            )
+        }
+        if (canGoToArtist) {
+            DropdownMenuItem(
+                text = { Text("Go to artist") },
+                leadingIcon = { Icon(Lucide.MicVocal, contentDescription = null) },
+                onClick = onGoToArtist,
+            )
+        }
+    }
+}
+
+/**
+ * The queue as a sheet over the player.
+ *
+ * The same list the queue button shows in place of the words, but over them rather than
+ * instead of them, for the times a listener wants to look at what is coming without
+ * losing the words they were reading.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QueueSheet(
+    queue: List<QueueItem>,
+    currentIndex: Int,
+    shuffled: Boolean,
+    onItemClick: (Int) -> Unit,
+    onMoveUp: (Int) -> Unit,
+    onMoveDown: (Int) -> Unit,
+    onRemove: (Int) -> Unit,
+    onSaveAsPlaylist: () -> Unit,
+    onClearUpcoming: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        QueuePanel(
+            queue = queue,
+            currentIndex = currentIndex,
+            shuffled = shuffled,
+            onItemClick = onItemClick,
+            onMoveUp = onMoveUp,
+            onMoveDown = onMoveDown,
+            onRemove = onRemove,
+            onSaveAsPlaylist = onSaveAsPlaylist,
+            onClearUpcoming = onClearUpcoming,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(480.dp),
+        )
+    }
+}
+
+/**
+ * The volume, when the listener has asked to see it.
+ *
+ * The thumb is held while it is being dragged so the slider does not jump back to the
+ * engine's older reading between one tick and the next.
+ */
+@Composable
+private fun VolumeSlider(volume: Float, onVolumeChange: (Float) -> Unit) {
+    var draggedTo by remember { mutableStateOf<Float?>(null) }
+    val shown = draggedTo ?: volume
+
+    Slider(
+        value = shown.coerceIn(0f, 1f),
+        onValueChange = {
+            draggedTo = it
+            onVolumeChange(it)
+        },
+        onValueChangeFinished = { draggedTo = null },
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/**
+ * The thin line under the transport: how far through the song it is, and where to jump.
+ *
+ * A rule three points high with a bead at its head, drawn rather than taken from the
+ * material slider, because the reference player shows a rule and a bead rather than a
+ * track with a handle. Dragging moves the bead and lets go where it stands.
+ */
+@Composable
+private fun ProgressLine(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) {
+    var widthPx by remember { mutableStateOf(1f) }
+    var draggedTo by remember { mutableStateOf<Float?>(null) }
+    val latestSeek by rememberUpdatedState(onSeek)
+
+    val fraction = if (durationMs <= 0L) {
+        0f
+    } else {
+        (draggedTo ?: positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                // A finger needs more room than the rule itself to land on it.
+                .height(24.dp)
+                .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
+                .pointerInput(durationMs) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var target = (down.position.x / widthPx).coerceIn(0f, 1f)
+                        draggedTo = target
+                        down.consume()
+                        drag(down.id) { change ->
+                            change.consume()
+                            target = (change.position.x / widthPx).coerceIn(0f, 1f)
+                            draggedTo = target
+                        }
+                        draggedTo = null
+                        if (durationMs > 0L) latestSeek((target * durationMs).toLong())
+                    }
+                },
+        ) {
+            val bead = 10.dp
+            val travel = maxWidth - bead
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant),
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxWidth(fraction)
+                    .height(3.dp)
+                    .background(MaterialTheme.colorScheme.primary),
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset(x = travel * fraction)
+                    .size(bead)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+            )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = if (LocalSettings.current.showRemainingTime) {
+                    "-" + formatDuration((durationMs - positionMs).coerceAtLeast(0L))
+                } else {
+                    formatDuration(positionMs)
+                },
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = formatDuration(durationMs),
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * The one line that says what the file is.
+ *
+ * It is read from the device rather than from the library, because the library does not
+ * keep a bitrate or a sample rate and the line is about the file as it is on the
+ * phone. A file nothing is known about has no line at all.
+ */
+@Composable
+private fun rememberSongFormatLine(mediaId: String?): String? {
+    val context = LocalContext.current
+    val format = produceState<SongFormat?>(initialValue = null, mediaId) {
+        value = withContext(Dispatchers.IO) { readSongFormat(context, mediaId) }
+    }.value
+
+    return songFormatLine(format)
+}
 
 /**
  * One entry in the sleep timer's menu.
@@ -475,20 +797,23 @@ private fun repeatDescription(mode: RepeatMode): String = when (mode) {
     RepeatMode.ONE -> "Repeat one"
 }
 
+/**
+ * The cover, and the full-screen view of it.
+ *
+ * A tap and a long press both open it, because the request named the long press and a
+ * plain tap keeps it reachable for anyone who cannot hold a finger down.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AlbumArtwork(mediaId: String?) {
+private fun AlbumArtwork(mediaId: String?, modifier: Modifier = Modifier) {
     val artwork = rememberAlbumArt(mediaId)
     var fullScreen by remember(mediaId) { mutableStateOf(false) }
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth(0.8f)
+        modifier = modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            // Tapping and holding both open the cover: a long press is the gesture the
-            // request named, and a plain tap keeps it reachable for TalkBack.
             .combinedClickable(
                 onClick = { if (artwork != null) fullScreen = true },
                 onLongClick = { if (artwork != null) fullScreen = true },
@@ -533,46 +858,6 @@ private fun AlbumArtwork(mediaId: String?) {
                         .padding(16.dp),
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun Scrubber(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) {
-    // While a finger is on the slider we follow the finger; otherwise we follow playback.
-    var scrubbingAt by remember { mutableStateOf<Float?>(null) }
-
-    val max = durationMs.coerceAtLeast(1L).toFloat()
-    val value = (scrubbingAt ?: positionMs.toFloat()).coerceIn(0f, max)
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Slider(
-            value = value,
-            onValueChange = { scrubbingAt = it },
-            onValueChangeFinished = {
-                scrubbingAt?.let { onSeek(it.toLong()) }
-                scrubbingAt = null
-            },
-            valueRange = 0f..max,
-        )
-        Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = if (LocalSettings.current.showRemainingTime) {
-                    "-" + formatDuration((max.toLong() - value.toLong()).coerceAtLeast(0L))
-                } else {
-                    formatDuration(value.toLong())
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = formatDuration(durationMs),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

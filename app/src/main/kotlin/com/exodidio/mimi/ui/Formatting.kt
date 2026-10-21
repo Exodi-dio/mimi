@@ -1,5 +1,6 @@
 package com.exodidio.mimi.ui
 
+import com.exodidio.mimi.library.SongFormat
 import com.exodidio.mimi.library.Track
 import kotlin.math.roundToInt
 
@@ -131,3 +132,93 @@ fun songSummaryLabel(count: Int, durationMs: Long): String {
     if (count == 0 || durationMs <= 0L) return songs
     return "$songs \u00b7 ${formatListDuration(durationMs)}"
 }
+
+/**
+ * The line under the scrubber: what the file says about itself.
+ *
+ * The parts come in the order a person would say them — the format, then how good the
+ * file is, then how often it plays — and anything the device does not know is left out
+ * rather than guessed at. A file nothing is known about has no line at all, because a
+ * row of empty separators says less than nothing.
+ */
+fun songFormatLine(format: SongFormat?): String? {
+    if (format == null) return null
+
+    val parts = listOfNotNull(
+        formatName(format.mimeType),
+        formatBitrate(format.bitrateBps),
+        formatSampleRate(format.sampleRateHz),
+    )
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" \u00b7 ")
+}
+
+/**
+ * The name of a file's format, from the type the device gives it.
+ *
+ * The provider names types rather than formats, so the mapping is written out: a file
+ * the table does not know is left out of the line entirely rather than shown under a
+ * name that means nothing to the listener.
+ */
+private fun formatName(mimeType: String?): String? {
+    val type = mimeType?.trim()?.lowercase() ?: return null
+    return formatNames[type]
+}
+
+/**
+ * The bitrate, in the units it is usually quoted in.
+ *
+ * The device counts bits per second and people quote kilobits per second, so the number
+ * is divided rather than relabelled. A bitrate of zero is not a bitrate.
+ */
+private fun formatBitrate(bitrateBps: Int?): String? {
+    val bitrate = bitrateBps ?: return null
+    if (bitrate <= 0) return null
+    return "${(bitrate / 1000.0).roundToInt()} kb/s"
+}
+
+/**
+ * The sample rate, in the units it is usually quoted in.
+ *
+ * Forty-four thousand one hundred hertz is read as 44.1 kHz, and a rate that lands on a
+ * whole number of kilohertz is written without the decimal, because "48 kHz" is how it
+ * is said and "48.0 kHz" only adds a digit.
+ */
+private fun formatSampleRate(sampleRateHz: Int?): String? {
+    val sampleRate = sampleRateHz ?: return null
+    if (sampleRate <= 0) return null
+
+    val kilohertz = sampleRate / 1000.0
+    val text = if (kilohertz % 1.0 == 0.0) {
+        kilohertz.toInt().toString()
+    } else {
+        kilohertz.toString()
+    }
+    return "$text kHz"
+}
+
+/**
+ * The formats the provider names, and what each of them is called.
+ *
+ * The same file can be named several ways by different devices, which is why the table
+ * holds the aliases as well as the plain names.
+ */
+private val formatNames: Map<String, String> = mapOf(
+    "audio/mpeg" to "MP3",
+    "audio/mp3" to "MP3",
+    "audio/mpeg3" to "MP3",
+    "audio/flac" to "FLAC",
+    "audio/x-flac" to "FLAC",
+    "audio/mp4" to "M4A",
+    "audio/m4a" to "M4A",
+    "audio/x-m4a" to "M4A",
+    "audio/aac" to "AAC",
+    "audio/ogg" to "OGG",
+    "audio/opus" to "OPUS",
+    "audio/x-wav" to "WAV",
+    "audio/wav" to "WAV",
+    "audio/vnd.wave" to "WAV",
+    "audio/amr" to "AMR",
+    "audio/3gpp" to "3GP",
+    "audio/x-ms-wma" to "WMA",
+    "audio/webm" to "WEBM",
+)

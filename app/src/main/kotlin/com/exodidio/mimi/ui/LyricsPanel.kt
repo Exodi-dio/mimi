@@ -22,12 +22,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.exodidio.mimi.MimiApplication
 import com.exodidio.mimi.lyrics.AndroidRomanizationEngine
 import com.exodidio.mimi.lyrics.Lyrics
@@ -71,10 +75,15 @@ fun rememberLyrics(mediaId: String?, version: Int = 0): LyricsState {
 }
 
 /**
- * The words, with the line being sung picked out and the list following along.
+ * The words, with the line being sung picked out and the rest fading away from it.
  *
- * Untimed words still scroll; they simply have nothing to follow and nothing to seek to,
- * which is the honest thing to do with a plain block of text.
+ * The song is the scroll: the line being sung sits in the middle of the block and the
+ * words around it fade with their distance from it, so the sheet reads as one line of
+ * light in a dimmer page. A listener who scrolls away takes the window with them and
+ * the song takes it back when the next line starts.
+ *
+ * Untimed words still scroll; they simply have nothing to follow and nothing to seek
+ * to, which is the honest thing to do with a plain block of text.
  */
 @Composable
 fun LyricsPanel(
@@ -104,6 +113,8 @@ fun LyricsPanel(
                         text = line.text,
                         romanised = romanised?.getOrNull(index).orEmpty(),
                         current = false,
+                        alpha = 1f,
+                        fontSize = 24.sp,
                         modifier = Modifier.padding(vertical = 6.dp),
                     )
                 }
@@ -112,24 +123,61 @@ fun LyricsPanel(
             val listState = rememberLazyListState()
             val currentIndex = lyrics.indexAt(positionMs)
 
-            LaunchedEffect(currentIndex) {
-                if (currentIndex >= 0) listState.animateScrollToItem(currentIndex)
+            // Whether the listener has left the line being sung. The song takes the
+            // window back as soon as the next line starts, so scrolling away is a way of
+            // reading ahead rather than a way of losing the words.
+            var scrolledAway by remember(lyrics) { mutableStateOf(false) }
+
+            LaunchedEffect(listState) {
+                // Only a finger counts. The scroll the song makes is not the listener's,
+                // so it must not be mistaken for one.
+                snapshotFlow { listState.isDragging }.collect { dragging ->
+                    if (dragging) scrolledAway = true
+                }
+            }
+
+            val focusIndex = if (scrolledAway) listState.firstVisibleItemIndex else currentIndex
+            val window = remember(lyrics.lines, focusIndex) { lyricWindow(lyrics.lines, focusIndex) }
+            val distances = window.associate { it.index to it.distance }
+
+            // The block is padded by half a screen at each end so that the first and the
+            // last line can sit in the middle of it rather than at the edge.
+            val density = LocalDensity.current
+            val viewportHeight = listState.layoutInfo.viewportSize.height
+            val halfViewport = with(density) { (viewportHeight / 2).toDp() }
+
+            LaunchedEffect(currentIndex, viewportHeight) {
+                if (currentIndex < 0 || viewportHeight <= 0) return@LaunchedEffect
+                scrolledAway = false
+                // An estimate of the line's own height, which is enough to put the words
+                // in the middle of the block rather than a third of the way down it.
+                val lineHeight = with(density) { 44.dp.toPx() }
+                val offset = -((viewportHeight - lineHeight) / 2).toInt()
+                listState.animateScrollToItem(
+                    index = currentIndex.coerceAtMost(lyrics.lines.lastIndex),
+                    scrollOffset = offset,
+                )
             }
 
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp, end = 52.dp),
+                contentPadding = PaddingValues(top = halfViewport, bottom = halfViewport, end = 52.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 itemsIndexed(lyrics.lines) { index, line ->
+                    val distance = distances[index] ?: (LYRIC_SIDE_LINES + 1)
+                    val visible = distance <= LYRIC_SIDE_LINES
                     LyricText(
                         text = line.text,
                         romanised = romanised?.getOrNull(index).orEmpty(),
                         current = index == currentIndex,
+                        alpha = if (index == currentIndex) 1f else lyricAlpha(distance),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(enabled = line.timeMs != null) {
+                            // A line nobody can see is not something to be tapped: the
+                            // words that are visible are the ones that can be seeked to.
+                            .clickable(enabled = visible && line.timeMs != null) {
                                 line.timeMs?.let(onSeek)
                             }
                             .padding(vertical = 6.dp),
@@ -163,27 +211,28 @@ fun LyricsMessage(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * One line of words.
+ *
+ * The size is fixed rather than scaled with the distance, because the reference sheet
+ * keeps every visible line the same size and lets the fading alone carry the distance.
+ */
 @Composable
 private fun LyricText(
     text: String,
     current: Boolean,
+    alpha: Float,
     modifier: Modifier = Modifier,
     romanised: String = "",
+    fontSize: TextUnit = 33.sp,
 ) {
     Column(modifier = modifier.padding(horizontal = 8.dp)) {
         Text(
             text = text,
-            style = if (current) {
-                MaterialTheme.typography.titleMedium
-            } else {
-                MaterialTheme.typography.bodyLarge
-            },
-            fontWeight = if (current) FontWeight.SemiBold else null,
-            color = if (current) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
+            fontSize = fontSize,
+            lineHeight = fontSize * 1.25f,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (current) 1f else alpha),
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -192,8 +241,8 @@ private fun LyricText(
         if (romanised.isNotBlank() && romanised != text) {
             Text(
                 text = romanised,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (current) 0.9f else 0.6f),
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha * 0.8f),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -236,9 +285,7 @@ private fun rememberRomanised(lyrics: Lyrics, enabled: Boolean): List<String>? {
 @Composable
 fun MissingLyrics(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 28.dp),
+        modifier = modifier.padding(horizontal = 28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
