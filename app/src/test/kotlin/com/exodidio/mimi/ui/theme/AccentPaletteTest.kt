@@ -1,7 +1,6 @@
 package com.exodidio.mimi.ui.theme
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -34,13 +33,13 @@ class AccentPaletteTest {
 
     @Test
     fun darkBackingsGetLightText() {
-        assertEquals(0xFFF5E7C6, onColourFor(Color(0xFF000000)).toArgb())
-        assertEquals(0xFFF5E7C6, onColourFor(Color(0xFF121014)).toArgb())
+        assertEquals(Color(0xFFF5E7C6), onColourFor(Color(0xFF000000)))
+        assertEquals(Color(0xFFF5E7C6), onColourFor(Color(0xFF121014)))
     }
 
     @Test
     fun paleBackingsGetDarkText() {
-        assertEquals(0xFF141218, onColourFor(Color(0xFFFDF6E7)).toArgb())
+        assertEquals(Color(0xFF141218), onColourFor(Color(0xFFFDF6E7)))
     }
 
     @Test
@@ -61,20 +60,20 @@ class AccentPaletteTest {
     @Test
     fun theAmoledSchemeIsTrueBlack() {
         val scheme = darkSchemeFor(accentByName("ink"), amoled = true)
-        assertEquals(0xFF000000, scheme.background.toArgb())
-        assertEquals(0xFF000000, scheme.surface.toArgb())
+        assertEquals(Color(0xFF000000), scheme.background)
+        assertEquals(Color(0xFF000000), scheme.surface)
     }
 
     @Test
     fun thePlainDarkSchemeIsNotTrueBlack() {
         val scheme = darkSchemeFor(accentByName("ink"), amoled = false)
-        assertNotEquals(0xFF000000, scheme.background.toArgb())
+        assertNotEquals(Color(0xFF000000), scheme.background)
     }
 
     @Test
     fun theAccentReachesTheScheme() {
         val accent = accentByName("rose")
         val scheme = darkSchemeFor(accent, amoled = false)
-        assertEquals(accent.dark.toArgb(), scheme.primary.toArgb())
+        assertEquals(accent.dark, scheme.primary)
     }
 }
