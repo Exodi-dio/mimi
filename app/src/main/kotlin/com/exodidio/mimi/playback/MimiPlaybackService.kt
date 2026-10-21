@@ -70,9 +70,9 @@ class MimiPlaybackService : MediaSessionService() {
             if (!currentSettings.autoPlay) return
             val connected = when (intent?.action) {
                 Intent.ACTION_HEADSET_PLUG ->
-                    // A headset plug reports 1 for plugged and 0 for pulled out; the
-                    // platform never published a named constant for the 1.
-                    intent.getIntExtra(Intent.EXTRA_STATE, -1) == 1
+                    // A headset plug reports 1 for plugged and 0 for pulled out under the
+                    // extra named "state"; the platform never published a constant for it.
+                    intent.getIntExtra(HEADSET_STATE, -1) == 1
 
                 BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED ->
                     intent.getIntExtra(BLUETOOTH_PROFILE_STATE, -1) ==
@@ -290,5 +290,8 @@ class MimiPlaybackService : MediaSessionService() {
          * one the system actually sends.
          */
         const val BLUETOOTH_PROFILE_STATE = "android.bluetooth.profile.extra.STATE"
+
+        /** The extra a wired-headset plug carries, named but not exported by `Intent`. */
+        const val HEADSET_STATE = "state"
     }
 }
