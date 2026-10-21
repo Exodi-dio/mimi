@@ -15,8 +15,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Playlist::class,
         PlaylistEntry::class,
         PlayStat::class,
+        ListenDay::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class MimiDatabase : RoomDatabase() {
@@ -30,6 +31,8 @@ abstract class MimiDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
 
     abstract fun playStatDao(): PlayStatDao
+
+    abstract fun listenDayDao(): ListenDayDao
 
     companion object {
         private const val NAME = "mimi.db"
@@ -132,6 +135,40 @@ abstract class MimiDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v4 -> v5 adds listening time, one row per song per local day.
+         *
+         * This is why the migration is written out rather than left to a rebuild: the
+         * table is new, but the rows in `play_stats` beside it are not, and a destructive
+         * upgrade would throw away every play count to gain an empty chart. The new table
+         * starts empty on purpose, because no earlier version measured how long anything
+         * was heard. The play and skip totals are preserved exactly, so the statistics
+         * page keeps its numbers while insight into time builds from the upgrade onwards.
+         *
+         * Additive, so every table the listener made something in is left untouched.
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `listen_days` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `track_id` INTEGER NOT NULL,
+                        `day` TEXT NOT NULL,
+                        `listened_ms` INTEGER NOT NULL,
+                        `plays` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS `index_listen_days_track_id_day`
+                    ON `listen_days` (`track_id`, `day`)
+                    """.trimIndent()
+                )
+            }
+        }
+
         @Volatile
         private var instance: MimiDatabase? = null
 
@@ -139,7 +176,7 @@ abstract class MimiDatabase : RoomDatabase() {
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, MimiDatabase::class.java, NAME)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     // Everything the app cannot rebuild lives in these tables, so the
                     // upgrade itself must not be the thing that loses it. The fallback is
                     // only there so a phone that somehow cannot walk the migration opens a

@@ -10,6 +10,7 @@ import com.exodidio.mimi.library.ComposerSummary
 import com.exodidio.mimi.library.FolderSummary
 import com.exodidio.mimi.library.GenreSummary
 import com.exodidio.mimi.library.LibraryChangeObserver
+import com.exodidio.mimi.library.ListenDay
 import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.PlayStat
 import com.exodidio.mimi.library.PlaylistSummary
@@ -212,6 +213,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyMap(),
+    )
+
+    /** How long each song was heard on each local day, as recorded. */
+    val listenDays: StateFlow<List<ListenDay>> = library.listenDays.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
     )
 
     private val _query = MutableStateFlow("")

@@ -90,6 +90,14 @@ class SettingsTest {
     }
 
     @Test
+    fun `hiding insights is remembered and defaults to showing them`() {
+        assertTrue(Settings().showInsights)
+
+        val hidden = Settings(showInsights = false)
+        assertEquals(hidden, Settings.from(Settings.rows(hidden)))
+    }
+
+    @Test
     fun `settings live under their own prefix`() {
         assertTrue(Settings.rows(Settings()).all { it.key.startsWith(Settings.PREFIX) })
     }

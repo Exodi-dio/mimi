@@ -81,10 +81,12 @@ fun AppDrawer(
     bannerFile: File?,
     pictureRevision: Int,
     current: Screen,
+    showInsights: Boolean,
     onOpenProfile: () -> Unit,
     onEditProfile: () -> Unit,
     onSearchSettings: () -> Unit,
     onOpenSection: (SettingsGroupId, String) -> Unit,
+    onOpenInsights: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val avatar = rememberProfileImage(avatarFile, DRAWER_AVATAR_PX, pictureRevision)
@@ -150,6 +152,18 @@ fun AppDrawer(
                             selected = openGroup == group && openSection == section,
                             onClick = { onOpenSection(group, section) },
                         )
+                        // Insights is a screen rather than a page of settings, so it sits
+                        // beside the Statistics heading it belongs with instead of being
+                        // one more section that opens a page. The switch that hides it is
+                        // the row under that heading on the page.
+                        if (group == SettingsGroupId.TOOLS && section == "Statistics" && showInsights) {
+                            DrawerRow(
+                                icon = Lucide.Clock,
+                                title = "Insights",
+                                selected = current == Screen.Insights,
+                                onClick = onOpenInsights,
+                            )
+                        }
                     }
                 }
             }

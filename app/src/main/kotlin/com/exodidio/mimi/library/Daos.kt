@@ -411,3 +411,48 @@ interface PlayStatDao {
     @Query("DELETE FROM play_stats WHERE track_id NOT IN (SELECT id FROM tracks)")
     suspend fun prune()
 }
+
+/**
+ * Listening time, one row per song per local day.
+ *
+ * The write is an upsert that adds to the row already there rather than replacing it: a
+ * song heard twice in an evening, or in two stretches either side of a pause, is one day of
+ * listening and not the last stretch alone.
+ *
+ * Reads are unkeyed because the screen can ask for any window it likes, and a handful of
+ * thousand small rows is cheaper to fold in memory than to teach the database about every
+ * period the picker offers.
+ */
+@Dao
+interface ListenDayDao {
+
+    @Query(
+        """
+        SELECT id, track_id, day, listened_ms, plays
+        FROM listen_days
+        ORDER BY day ASC
+        """
+    )
+    fun observeAll(): Flow<List<ListenDay>>
+
+    /**
+     * Adds listening to the row for this song and day, creating it when it is the first.
+     *
+     * `excluded` is the row this statement tried to insert, so the existing totals are
+     * added to the new amounts rather than being overwritten by them.
+     */
+    @Query(
+        """
+        INSERT INTO listen_days (track_id, day, listened_ms, plays)
+        VALUES (:trackId, :day, :listenedMs, :plays)
+        ON CONFLICT(track_id, day) DO UPDATE SET
+            listened_ms = listened_ms + excluded.listened_ms,
+            plays = plays + excluded.plays
+        """
+    )
+    suspend fun addListening(trackId: Long, day: String, listenedMs: Long, plays: Int)
+
+    /** History for files that are no longer on the device, pruned with the files themselves. */
+    @Query("DELETE FROM listen_days WHERE track_id NOT IN (SELECT id FROM tracks)")
+    suspend fun prune()
+}

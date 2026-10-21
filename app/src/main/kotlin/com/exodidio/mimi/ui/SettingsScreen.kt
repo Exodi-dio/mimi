@@ -557,6 +557,13 @@ private fun SettingsEntryRow(
             onClick = onOpenStatistics,
         )
 
+        "about.insights" -> SettingsToggleRow(
+            title = entry.title,
+            checked = settings.showInsights,
+            onCheckedChange = { value -> onChange { it.copy(showInsights = value) } },
+            subtitle = subtitle,
+        )
+
         "about.licence" -> SettingsInfoRow(
             title = entry.title,
             subtitle = subtitle,

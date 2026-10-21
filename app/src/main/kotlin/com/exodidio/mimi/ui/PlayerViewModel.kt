@@ -2,10 +2,12 @@ package com.exodidio.mimi.ui
 
 import android.app.Application
 import android.net.Uri
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.exodidio.mimi.MimiApplication
 import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.library.listeningElapsedMs
 import com.exodidio.mimi.playback.Media3PlaybackEngine
 import com.exodidio.mimi.playback.PlaybackEngine
 import com.exodidio.mimi.playback.PlaybackState
@@ -32,6 +34,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /** The song listening history is currently being kept for, and whether it counts yet. */
     private var trackedMediaId: String? = null
     private var heard = false
+
+    /** The song listening time is being kept for, and how much of it is not yet written. */
+    private var listeningMediaId: String? = null
+    private var listeningSinceElapsedMs: Long? = null
+    private var listeningWasPlaying = false
+    private var pendingListeningMs = 0L
 
     init {
         viewModelScope.launch {
@@ -200,16 +208,48 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * song, so a song that reaches its own end has always been heard. Any song that is
      * replaced while still unheard was therefore not finished — it was moved on from, by
      * the next button or by the listener picking something else.
+     *
+     * The same collector keeps listening time. Each reading of the monotonic clock adds the
+     * stretch since the previous reading only while the player was actually playing, so a
+     * pause and a later resume do not count the silence between them. The total is written
+     * whenever the song changes, playback pauses, or a short stretch has built up, which is
+     * what keeps a process that is killed from losing much of it. A skip writes whatever
+     * was heard before it as well, because the time was still spent listening.
      */
     private fun trackHistory() {
         viewModelScope.launch {
             engine.state.collect { snapshot ->
+                val now = SystemClock.elapsedRealtime()
                 val current = snapshot.current
+
                 if (current == null) {
+                    pendingListeningMs += listeningElapsedMs(
+                        wasPlaying = listeningWasPlaying,
+                        sinceElapsedMs = listeningSinceElapsedMs,
+                        nowElapsedMs = now,
+                    )
+                    flushListening()
                     trackedMediaId = null
                     heard = false
+                    listeningMediaId = null
+                    listeningSinceElapsedMs = null
+                    listeningWasPlaying = false
                     return@collect
                 }
+
+                // The elapsed stretch belongs to the song that was playing before this
+                // reading, so it is added before a change of song can move the label.
+                pendingListeningMs += listeningElapsedMs(
+                    wasPlaying = listeningWasPlaying,
+                    sinceElapsedMs = listeningSinceElapsedMs,
+                    nowElapsedMs = now,
+                )
+                if (current.mediaId != listeningMediaId) {
+                    flushListening()
+                    listeningMediaId = current.mediaId
+                }
+                listeningSinceElapsedMs = now
+                listeningWasPlaying = snapshot.isPlaying
 
                 if (current.mediaId != trackedMediaId) {
                     val abandoned = trackedMediaId?.takeIf { !heard }
@@ -222,18 +262,39 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
 
-                if (heard) return@collect
-                val duration = snapshot.durationMs
-                val threshold =
-                    if (duration > 0) minOf(PLAY_THRESHOLD_MS, duration / 2) else PLAY_THRESHOLD_MS
-                if (snapshot.positionMs < threshold) return@collect
+                if (!heard) {
+                    val duration = snapshot.durationMs
+                    val threshold =
+                        if (duration > 0) minOf(PLAY_THRESHOLD_MS, duration / 2) else PLAY_THRESHOLD_MS
+                    if (snapshot.positionMs >= threshold) {
+                        heard = true
+                        current.mediaId.toTrackId()?.let { id ->
+                            runCatching { library.recordPlay(id) }
+                        }
+                    }
+                }
 
-                heard = true
-                current.mediaId.toTrackId()?.let { id ->
-                    runCatching { library.recordPlay(id) }
+                if (!snapshot.isPlaying || pendingListeningMs >= LISTEN_FLUSH_MS) {
+                    flushListening()
                 }
             }
         }
+    }
+
+    /**
+     * Writes the listening time built up for the song it belongs to.
+     *
+     * The amount is taken before the write so a slow database call cannot be counted twice
+     * by a second flush arriving while this one is still running.
+     */
+    private suspend fun flushListening() {
+        val mediaId = listeningMediaId ?: return
+        val elapsed = pendingListeningMs
+        if (elapsed <= 0L) return
+        pendingListeningMs = 0L
+
+        val trackId = mediaId.toTrackId() ?: return
+        runCatching { library.recordListening(trackId, elapsed, System.currentTimeMillis()) }
     }
 
     /**
@@ -256,5 +317,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
          * skipped on the first bar from topping the most-played list.
          */
         const val PLAY_THRESHOLD_MS = 20_000L
+
+        /**
+         * How much unwritten listening is allowed to build up before it reaches the
+         * database. Short enough that a killed process loses little, long enough that a
+         * song is not a write every time the player ticks.
+         */
+        const val LISTEN_FLUSH_MS = 10_000L
     }
 }

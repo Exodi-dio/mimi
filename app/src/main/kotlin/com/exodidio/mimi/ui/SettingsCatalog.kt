@@ -41,7 +41,7 @@ enum class SettingsGroupId(
     ),
     TOOLS(
         title = "Tools",
-        subtitle = "The equaliser, statistics and library cleanup.",
+        subtitle = "Insights, the equaliser, statistics and library cleanup.",
         icon = Lucide.Wrench,
     ),
     ABOUT(
@@ -282,6 +282,18 @@ val settingsCatalog: List<SettingEntry> = listOf(
         title = "Statistics",
         subtitle = "How much there is, and how much you have played.",
         keywords = listOf("counts", "plays", "history", "listening", "numbers"),
+    ),
+    SettingEntry(
+        key = "about.insights",
+        group = SettingsGroupId.TOOLS,
+        section = "Statistics",
+        title = "Insights",
+        subtitle = "Charts of what the library holds and what you have listened to. " +
+            "Turn this off to keep the drawer shorter.",
+        keywords = listOf(
+            "charts", "graphs", "listening", "history", "genres", "artists", "formats",
+            "growth", "drawer",
+        ),
     ),
     SettingEntry(
         key = "library.duplicates",

@@ -107,6 +107,7 @@ private fun MimiAppContent() {
     val recentlyPlayed by libraryViewModel.recentlyPlayed.collectAsStateWithLifecycle()
     val mostPlayed by libraryViewModel.mostPlayed.collectAsStateWithLifecycle()
     val playStats by libraryViewModel.playStats.collectAsStateWithLifecycle()
+    val listenDays by libraryViewModel.listenDays.collectAsStateWithLifecycle()
     val scanning by libraryViewModel.scanning.collectAsStateWithLifecycle()
     val lastScanDropped by libraryViewModel.lastScanDropped.collectAsStateWithLifecycle()
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
@@ -286,6 +287,7 @@ private fun MimiAppContent() {
                             bannerFile = profileBannerFile,
                             pictureRevision = pictureRevision,
                             current = screen,
+                            showInsights = settings.showInsights,
                             onOpenProfile = { goFromDrawer(Screen.Profile) },
                             onEditProfile = { goFromDrawer(Screen.Profile) },
                             onSearchSettings = { goFromDrawer(Screen.SettingsSearch) },
@@ -297,6 +299,7 @@ private fun MimiAppContent() {
                                     )
                                 )
                             },
+                            onOpenInsights = { goFromDrawer(Screen.Insights) },
                         )
                     },
                 ) {
@@ -432,6 +435,19 @@ private fun MimiAppContent() {
                                         playStats = playStats,
                                     ),
                                     mostPlayed = mostPlayed,
+                                    playingMediaId = playingMediaId,
+                                    onBack = navigator::pop,
+                                    onPlayTrack = { playerViewModel.play(listOf(it), 0) },
+                                )
+
+                                Screen.Insights -> InsightsScreen(
+                                    tracks = tracks,
+                                    albumCount = albums.size,
+                                    artistCount = artists.size,
+                                    playlistCount = playlists.size,
+                                    playStats = playStats,
+                                    listenDays = listenDays,
+                                    separators = settings.creditSeparators,
                                     playingMediaId = playingMediaId,
                                     onBack = navigator::pop,
                                     onPlayTrack = { playerViewModel.play(listOf(it), 0) },

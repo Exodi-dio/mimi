@@ -103,6 +103,14 @@ data class Settings(
     val detailSort: DetailSort = DetailSort.AS_LISTED,
     /** How a credit line is split into the people on it. */
     val creditSeparators: List<String> = DEFAULT_CREDIT_SEPARATORS,
+    /**
+     * Whether the drawer offers the Insights screen.
+     *
+     * On by default because it is a view of the library rather than an experiment. Turning
+     * it off hides the row and shortens the drawer; the setting itself stays where it can
+     * be turned back on.
+     */
+    val showInsights: Boolean = true,
 ) {
     /** Every curve on offer: the ones that came with the app, then the listener's own. */
     val equalizerChoices: List<EqualizerProfile> get() = EqualizerPresets + equalizerProfiles
@@ -169,6 +177,7 @@ data class Settings(
         private const val HIDDEN_ALBUMS = "setting.hidden_albums"
         private const val DETAIL_SORT = "setting.detail_sort"
         private const val CREDIT_SEPARATORS = "setting.credit_separators"
+        private const val SHOW_INSIGHTS = "setting.show_insights"
 
         /**
          * Reads a set of stored rows into settings.
@@ -219,6 +228,7 @@ data class Settings(
                 creditSeparators = stored[CREDIT_SEPARATORS]
                     ?.let(::decodeExcludedFolders)
                     ?: defaults.creditSeparators,
+                showInsights = stored.boolean(SHOW_INSIGHTS, defaults.showInsights),
             )
         }
 
@@ -248,6 +258,7 @@ data class Settings(
             MetaEntry(HIDDEN_ALBUMS, encodeHiddenNames(settings.hiddenAlbums)),
             MetaEntry(DETAIL_SORT, settings.detailSort.name),
             MetaEntry(CREDIT_SEPARATORS, encodeCreditSeparators(settings.creditSeparators)),
+            MetaEntry(SHOW_INSIGHTS, if (settings.showInsights) "1" else "0"),
         )
 
         private fun Map<String, String>.boolean(key: String, default: Boolean): Boolean =

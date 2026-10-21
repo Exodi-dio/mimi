@@ -105,6 +105,14 @@ class FormattingTest {
     }
 
     @Test
+    fun `a signed change keeps the direction visible`() {
+        assertEquals("+25%", formatSignedPercent(24.6))
+        assertEquals("-40%", formatSignedPercent(-40.0))
+        assertEquals("0%", formatSignedPercent(0.2))
+        assertEquals("0%", formatSignedPercent(-0.2))
+    }
+
+    @Test
     fun `the total ignores songs whose length is unknown`() {
         val songs = listOf(
             track(1, 120_000L),

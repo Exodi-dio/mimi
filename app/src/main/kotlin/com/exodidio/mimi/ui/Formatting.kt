@@ -1,6 +1,7 @@
 package com.exodidio.mimi.ui
 
 import com.exodidio.mimi.library.Track
+import kotlin.math.roundToInt
 
 /**
  * Formats a duration for display. Kept as a plain function (and unit tested) so
@@ -102,6 +103,22 @@ fun formatListDuration(durationMs: Long): String {
 /** How long a list of songs would take, used by every list header that totals one. */
 fun totalDurationMs(tracks: List<Track>): Long =
     tracks.sumOf { it.durationMs.coerceAtLeast(0L) }
+
+/**
+ * A change against the previous period, as a signed, rounded percentage.
+ *
+ * The sign is the point of the number, so a fall carries a minus rather than only being
+ * smaller than the rise it is compared with. A change that rounds to nothing reads as
+ * "0%" instead of "+0%", because a plus in front of no movement claims a rise.
+ */
+fun formatSignedPercent(changePercent: Double): String {
+    val rounded = changePercent.roundToInt()
+    return when {
+        rounded > 0 -> "+$rounded%"
+        rounded < 0 -> "$rounded%"
+        else -> "0%"
+    }
+}
 
 /**
  * The one line every song list header uses: the count, then the running time.

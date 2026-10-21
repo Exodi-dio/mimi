@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.ZoneId
 
 /**
  * The library as the rest of the app sees it.
@@ -22,6 +23,8 @@ class LibraryRepository(
     private val favoriteDao = database.favoriteDao()
     private val playlistDao = database.playlistDao()
     private val playStatDao = database.playStatDao()
+
+    private val listenDayDao = database.listenDayDao()
 
     val tracks: Flow<List<Track>> = trackDao.observeAll()
 
@@ -252,6 +255,15 @@ class LibraryRepository(
     val playStats: Flow<Map<Long, PlayStat>> = playStatDao.observeAll()
         .map { stats -> stats.associateBy { it.trackId } }
 
+    /**
+     * Listening time per song per local day.
+     *
+     * Handed over as rows rather than as a prepared chart because every period the picker
+     * offers is a fold over the same small list, and doing that in one pure place keeps the
+     * screen free of date arithmetic.
+     */
+    val listenDays: Flow<List<ListenDay>> = listenDayDao.observeAll()
+
     fun recentlyPlayed(limit: Int): Flow<List<Track>> = playStatDao.observeRecentlyPlayed(limit)
 
     fun mostPlayed(limit: Int): Flow<List<Track>> = playStatDao.observeMostPlayed(limit)
@@ -262,11 +274,22 @@ class LibraryRepository(
      * The insert comes first so a song that has never been played still has a row to
      * update; `IGNORE` on conflict means an existing row — and the history in it — is left
      * exactly as it was.
+     *
+     * The daily row gets the play in the same transaction: a play is the moment an attempt
+     * ended with the song heard, and the chart needs that on the day it happened. Listening
+     * time is written separately, because a skip still counts whatever was heard before it.
      */
     suspend fun recordPlay(trackId: Long) {
+        val now = System.currentTimeMillis()
         database.withTransaction {
             playStatDao.insertIfAbsent(PlayStat(trackId = trackId))
-            playStatDao.recordPlay(trackId, System.currentTimeMillis())
+            playStatDao.recordPlay(trackId, now)
+            listenDayDao.addListening(
+                trackId = trackId,
+                day = localDayOf(now, ZoneId.systemDefault()),
+                listenedMs = 0L,
+                plays = 1,
+            )
         }
     }
 
@@ -276,6 +299,23 @@ class LibraryRepository(
             playStatDao.insertIfAbsent(PlayStat(trackId = trackId))
             playStatDao.recordSkip(trackId)
         }
+    }
+
+    /**
+     * Adds [listenedMs] of real listening to the song's row for the day [at] fell on.
+     *
+     * The duration comes from a monotonic clock at the player, so it is what was actually
+     * heard rather than the difference between two wall clock readings. The day is decided
+     * here, once, so every writer files listening under the same local date.
+     */
+    suspend fun recordListening(trackId: Long, listenedMs: Long, at: Long) {
+        if (listenedMs <= 0L) return
+        listenDayDao.addListening(
+            trackId = trackId,
+            day = localDayOf(at, ZoneId.systemDefault()),
+            listenedMs = listenedMs,
+            plays = 0,
+        )
     }
 
     suspend fun lastScanAt(): Long = metaDao.get(KEY_LAST_SCAN)?.toLongOrNull() ?: 0L
@@ -314,6 +354,7 @@ class LibraryRepository(
             // themselves: the track list has just been rebuilt, so this is the one moment
             // where "no longer on the device" is known rather than guessed.
             playStatDao.prune()
+            listenDayDao.prune()
             metaDao.put(MetaEntry(KEY_LAST_SCAN, now.toString()))
         }
         return ScanResult(found = scanned.size, dropped = dropped, skipped = false)

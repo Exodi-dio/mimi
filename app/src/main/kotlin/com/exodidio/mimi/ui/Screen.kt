@@ -42,6 +42,9 @@ sealed interface Screen {
     /** What the library adds up to, reached from the tools page. */
     data object Statistics : Screen
 
+    /** Charts of the library and of listening, over a period the screen chooses. */
+    data object Insights : Screen
+
     data class AlbumDetail(val albumId: Long) : Screen
 
     data class ArtistDetail(val artist: String) : Screen
