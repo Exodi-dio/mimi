@@ -45,6 +45,7 @@ import com.exodidio.mimi.MimiApplication
 import com.exodidio.mimi.lyrics.AndroidRomanizationEngine
 import com.exodidio.mimi.lyrics.KaraokeSweep
 import com.exodidio.mimi.lyrics.LEFT_TO_RIGHT_MARK
+import com.exodidio.mimi.lyrics.LyricLine
 import com.exodidio.mimi.lyrics.LyricWord
 import com.exodidio.mimi.lyrics.Lyrics
 import com.exodidio.mimi.lyrics.RomanizeLyrics
