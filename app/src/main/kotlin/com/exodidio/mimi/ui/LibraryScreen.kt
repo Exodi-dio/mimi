@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Search
 import com.exodidio.mimi.library.Track
+import kotlinx.coroutines.launch
 
 @Composable
 fun LibraryScreen(
@@ -48,6 +50,7 @@ fun LibraryScreen(
     var filter by rememberSaveable { mutableStateOf("") }
     val shown = remember(tracks, filter) { tracks.matchingListFilter(filter) }
     val listState = rememberKeptListState(initialScrollIndex, onScrollIndex)
+    val scope = rememberCoroutineScope()
     val stops = remember(shown) { alphabetStops(shown.map { it.title }) }
     val rail = alphabetRailVisible(shown.size)
     val active = activeAlphabetLetter(stops, listState.firstVisibleItemIndex)
@@ -142,7 +145,7 @@ fun LibraryScreen(
                     AlphabetRail(
                         stops = stops,
                         active = active,
-                        onJump = { index -> listState.animateScrollToItem(index) },
+                        onJump = { index -> scope.launch { listState.animateScrollToItem(index) } },
                         modifier = Modifier.align(Alignment.CenterEnd),
                     )
                 }

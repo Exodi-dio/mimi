@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Shuffle
 import com.exodidio.mimi.library.Track
 import com.exodidio.mimi.library.sortedForDetail
+import kotlinx.coroutines.launch
 
 /**
  * A screen that is a title, optionally a picture, and a list of songs.
@@ -79,6 +81,7 @@ fun TrackListScreen(
     val stops = remember(shown) { alphabetStops(shown.map { it.title }) }
     val rail = alphabetRailVisible(shown.size)
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val active = activeAlphabetLetter(stops, listState.firstVisibleItemIndex)
 
     val headerSubtitle = when {
@@ -218,7 +221,7 @@ fun TrackListScreen(
                 AlphabetRail(
                     stops = stops,
                     active = active,
-                    onJump = { index -> listState.animateScrollToItem(index) },
+                    onJump = { index -> scope.launch { listState.animateScrollToItem(index) } },
                     modifier = Modifier.align(Alignment.CenterEnd),
                 )
             }

@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.ListFilter
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.X
 import com.exodidio.mimi.library.AlbumSort

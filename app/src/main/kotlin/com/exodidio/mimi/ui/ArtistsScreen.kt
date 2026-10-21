@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.library.ArtistSummary
+import kotlinx.coroutines.launch
 
 /**
  * Every artist credited in the library.
@@ -45,6 +47,7 @@ fun ArtistsScreen(
     onScrollIndex: (Int) -> Unit = {},
 ) {
     val listState = rememberKeptListState(initialScrollIndex, onScrollIndex)
+    val scope = rememberCoroutineScope()
     val stops = remember(artists) { alphabetStops(artists.map { it.artist }) }
     val rail = alphabetRailVisible(artists.size)
     val active = activeAlphabetLetter(stops, listState.firstVisibleItemIndex)
@@ -78,7 +81,7 @@ fun ArtistsScreen(
                     AlphabetRail(
                         stops = stops,
                         active = active,
-                        onJump = { index -> listState.animateScrollToItem(index) },
+                        onJump = { index -> scope.launch { listState.animateScrollToItem(index) } },
                         modifier = Modifier.align(Alignment.CenterEnd),
                     )
                 }
