@@ -61,6 +61,8 @@ fun SearchScreen(
     onPickRecent: (String) -> Unit = {},
     onForgetRecent: () -> Unit = {},
     onSubmit: () -> Unit = {},
+    suggestions: List<String> = emptyList(),
+    onSuggestionPick: (String) -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(title = "Search")
@@ -93,7 +95,11 @@ fun SearchScreen(
             )
 
             query.isBlank() -> SearchHint("Find a song, an artist or an album.")
-            results.isEmpty() -> SearchHint("Nothing matches \u201c$query\u201d.")
+            results.isEmpty() -> SearchNothingFound(
+                query = query,
+                suggestions = suggestions,
+                onSuggestionPick = onSuggestionPick,
+            )
             else -> LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -180,5 +186,64 @@ private fun SearchHint(text: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+/**
+ * The end of a search that found nothing.
+ *
+ * The near matches are offered rather than the dead end on its own, because a word
+ * typed wrong is a question the library can usually answer: the words are close enough
+ * that picking one of them is almost certainly what was meant.
+ */
+@Composable
+private fun SearchNothingFound(
+    query: String,
+    suggestions: List<String>,
+    onSuggestionPick: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 20.dp, end = 20.dp, top = 24.dp),
+    ) {
+        Text(
+            text = "Nothing matches \u201c$query\u201d.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (suggestions.isEmpty()) return
+
+        Text(
+            text = "Did you mean",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+        )
+
+        suggestions.forEach { suggestion ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSuggestionPick(suggestion) }
+                    .padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Lucide.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = suggestion,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }

@@ -69,6 +69,7 @@ private enum class SettingsChoice {
     BACKUP_RESTORE,
     BACKUP_FREQUENCY,
     BACKUP_FOLDER,
+    WHATS_NEW,
 }
 
 /** How long a row found through search stays tinted before it fades back. */
@@ -391,6 +392,13 @@ fun SettingsGroupScreen(
             title = "Backup folder",
             message = "Choosing a backup folder is not built yet. The choice is remembered, " +
                 "but no automatic backup is written.",
+            onDismiss = { openChoice = null },
+        )
+
+        // The sheet rather than a dialog: a changelog is longer than a question, and it
+        // is read rather than answered.
+        SettingsChoice.WHATS_NEW -> ChangelogSheet(
+            version = appVersion(),
             onDismiss = { openChoice = null },
         )
 
@@ -974,6 +982,13 @@ private fun SettingsEntryRow(
                     "nothing sent anywhere."
             )
         }
+
+        "about.whats_new" -> SettingsActionRow(
+            title = entry.title,
+            subtitle = subtitle,
+            value = appVersion(),
+            onClick = { onChoose(SettingsChoice.WHATS_NEW) },
+        )
 
         "about.statistics" -> SettingsActionRow(
             title = entry.title,

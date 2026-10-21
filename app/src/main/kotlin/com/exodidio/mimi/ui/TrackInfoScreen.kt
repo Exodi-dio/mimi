@@ -21,8 +21,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronRight
@@ -36,8 +39,12 @@ import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Share2
 import com.exodidio.mimi.library.PlayStat
 import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.library.channelLabel
+import com.exodidio.mimi.library.readAudioChannelCount
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Everything the app knows about one song.
@@ -73,6 +80,10 @@ fun TrackInfoScreen(
     }
 
     val albumLine = listOfNotNull(track.artist, track.album).joinToString(" \u00b7 ")
+
+    // Read from the file itself rather than from the provider, which is why it takes a
+    // moment to arrive.
+    val channels = rememberAudioChannels(track.contentUri)
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
@@ -151,6 +162,9 @@ fun TrackInfoScreen(
             InfoRow("Size", formatFileSize(track.sizeBytes))
             InfoRow("Added", formatDate(track.dateAdded))
             InfoRow("Modified", formatDate(track.dateModified))
+            // Said only once the file has been read: a row that says "unknown" while the
+            // answer is still on its way would be wrong rather than honest.
+            channels?.let { InfoRow("Channels", channelLabel(it.channels)) }
             InfoRow("Location", track.contentUri)
 
             InfoSection("Listening")
@@ -276,4 +290,30 @@ private fun formatDate(epochSeconds: Long?): String? {
     return runCatching {
         DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(epochSeconds * 1_000L))
     }.getOrNull()
+}
+
+/**
+ * The channel count of the file, once it has been read.
+ *
+ * Null while the read is still on its way, which is what keeps the row off the screen
+ * until there is something true to say about it.
+ */
+private data class AudioChannelReading(val channels: Int?)
+
+/**
+ * How many channels the file behind [mediaId] has.
+ *
+ * The read opens the file and reads its header, so it is made off the main thread: a
+ * file that takes a moment to open would otherwise hold the screen up while it does.
+ */
+@Composable
+private fun rememberAudioChannels(mediaId: String?): AudioChannelReading? {
+    val context = LocalContext.current
+    return produceState<AudioChannelReading?>(initialValue = null, mediaId) {
+        value = AudioChannelReading(
+            channels = withContext(Dispatchers.IO) {
+                readAudioChannelCount(context, mediaId)
+            },
+        )
+    }.value
 }

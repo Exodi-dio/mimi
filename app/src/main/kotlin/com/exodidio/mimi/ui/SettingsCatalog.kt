@@ -678,6 +678,16 @@ val settingsCatalog: List<SettingEntry> = listOf(
         keywords = listOf("libraries", "credits", "compose", "room", "media3"),
     ),
     SettingEntry(
+        key = "about.whats_new",
+        group = SettingsGroupId.ABOUT,
+        section = "THIS APP",
+        title = "What's new",
+        subtitle = "What changed in this build.",
+        keywords = listOf(
+            "changelog", "changes", "release", "notes", "new", "what's new", "update",
+        ),
+    ),
+    SettingEntry(
         key = "about.statistics",
         group = SettingsGroupId.ABOUT,
         section = "STATISTICS",

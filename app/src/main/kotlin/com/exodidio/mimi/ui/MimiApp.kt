@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -47,7 +48,9 @@ import com.exodidio.mimi.library.bottomTabsIn
 import com.exodidio.mimi.library.playedWithin
 import com.exodidio.mimi.library.splitCredits
 import com.exodidio.mimi.ui.theme.MimiTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The shell.
@@ -110,6 +113,25 @@ private fun MimiAppContent() {
     val lastScanDropped by libraryViewModel.lastScanDropped.collectAsStateWithLifecycle()
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
+    // Near matches for a search that found nothing. Ranking the library means measuring
+    // every title, artist and album against the query, which is a pass over the whole
+    // collection and so belongs off the main thread. It is only worth doing when the
+    // search came back empty, since that is the only time the answers are shown.
+    val nothingFound = searchResults.isEmpty()
+    val searchSuggestions by produceState(
+        initialValue = emptyList<String>(),
+        searchQuery,
+        tracks,
+        nothingFound,
+    ) {
+        value = if (nothingFound) {
+            withContext(Dispatchers.Default) {
+                suggestTerms(searchQuery, libraryTerms(tracks))
+            }
+        } else {
+            emptyList()
+        }
+    }
     val recentSearches by libraryViewModel.recentSearches.collectAsStateWithLifecycle()
     val folders by libraryViewModel.folders.collectAsStateWithLifecycle()
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
@@ -267,6 +289,7 @@ private fun MimiAppContent() {
                     onCancelSleepTimer = playerViewModel::cancelSleepTimer,
                     onStopAfterSong = playerViewModel::stopAfterSong,
                     onSetSpeed = playerViewModel::setSpeed,
+                    onSetPitch = playerViewModel::setPitch,
                     // Found by id at the moment it is asked for rather than tracked
                     // alongside the player, which reports a new position twice a second.
                     onGoToAlbum = {
@@ -422,6 +445,13 @@ private fun MimiAppContent() {
                                     onPickRecent = libraryViewModel::onQueryChange,
                                     onForgetRecent = libraryViewModel::forgetSearches,
                                     onSubmit = libraryViewModel::rememberSearch,
+                                    suggestions = searchSuggestions,
+                                    // A suggestion is a search again, so it runs the same
+                                    // way a typed one does rather than jumping to a row
+                                    // that was never asked for.
+                                    onSuggestionPick = { text ->
+                                        libraryViewModel.onQueryChange(text)
+                                    },
                                 )
 
                                 Screen.SettingsHome -> SettingsHomeScreen(

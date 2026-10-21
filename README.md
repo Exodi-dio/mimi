@@ -26,8 +26,10 @@ and it is not meant to be.
 | Every list header counts its songs and running time, with sort and in-list search beside it | |
 | Loved songs, with a shelf of their own on the home screen | |
 | Search across titles, artists and albums, with recent searches offered back | |
+| A search that finds nothing offers the nearest titles, artists and albums instead of a dead end | |
 | Play / pause / next / previous / seek, with a draggable progress rule and a bead at its head | |
 | Shuffle, repeat off/all/one, playback speed, sleep timer (including end of track) | |
+| A speed and pitch sheet with the current value on each tile and the presets beneath it | Pitch shifting on a file the phone's decoder cannot time-stretch |
 | Play or shuffle any album, artist, genre, year, folder or playlist | |
 | Play or shuffle the loved songs, and pick a random album from the grid | |
 | Up next queue: reorder, jump, remove, play next, add to queue, clear what is coming | |
@@ -55,6 +57,7 @@ and it is not meant to be.
 | Insights: counts, formats and growth for the library, and listening charts, genres, artists and top songs over 7 days, 30 days or all time, switchable from About | |
 | Last added and Recently played lists, sliced by a period chosen on the Playlists settings page | |
 | Everything known about a song on one screen, and sharing its file | |
+| Song details also say when a file was added to the device, when it was last changed, and how many channels it has | |
 | Pick several songs at once and love them, queue them or put them in a playlist | |
 | A duration range that hides short or long files from the scan and the cached library | |
 | Blacklisted folders left out of the library without deleting anything | |
@@ -65,6 +68,7 @@ and it is not meant to be.
 | A profile at the top right of the home screen: a name, a picture and a banner, kept on the device with no account | |
 | A drawer of nine destinations, with counts on Library and Folders and nothing profile-shaped in it | |
 | Settings behind one drawer row: an index, eight pages, and a search that opens the page with the row in view | |
+| A What's new sheet on the About page, listing what changed in this build | |
 | Bottom tabs and home shelves reordered and hidden from the Customization page | |
 
 ## Stack

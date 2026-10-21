@@ -41,6 +41,8 @@ data class PlaybackState(
     val repeatMode: RepeatMode = RepeatMode.OFF,
     /** How fast the music runs, as a multiple of normal speed. */
     val speed: Float = 1f,
+    /** How far the pitch is shifted, in semitones up from the recording. */
+    val pitchSemitones: Int = 0,
     /** How loud the music is, as a fraction of the full volume. */
     val volume: Float = 1f,
     /** Everything loaded, in play order. [current] is this list at [currentIndex]. */
@@ -79,6 +81,15 @@ interface PlaybackEngine {
 
     /** How fast to play, as a multiple of normal speed. */
     fun setSpeed(speed: Float)
+
+    /**
+     * How far to shift the pitch, in semitones up from the recording.
+     *
+     * Zero is the song as it was recorded. The engine can only shift what its decoder can
+     * time-stretch, so a file the phone plays in a way that leaves the pitch alone is
+     * left as it is rather than being altered in some other way.
+     */
+    fun setPitch(semitones: Int)
 
     /**
      * How loud to play, as a fraction of the full volume.

@@ -143,6 +143,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setSpeed(speed: Float) = engine.setSpeed(speed)
 
+    /** How far the music is shifted up, in semitones. */
+    fun setPitch(semitones: Int) = engine.setPitch(semitones)
+
     /**
      * How loud the music plays.
      *

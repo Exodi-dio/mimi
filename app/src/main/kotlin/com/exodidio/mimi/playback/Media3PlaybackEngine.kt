@@ -153,6 +153,25 @@ class Media3PlaybackEngine(
     }
 
     /**
+     * How far to shift the pitch, in semitones up from the recording.
+     *
+     * The player is given both the speed and the pitch together, because setting one
+     * on its own would throw the other away. The shift itself is the player's own work:
+     * it time-stretches the audio rather than playing it faster, so the words are still
+     * the words.
+     *
+     * A player that cannot shift the pitch leaves the file as it was, which is why the
+     * sheet says plainly what the engine can do rather than promising a change.
+     */
+    override fun setPitch(semitones: Int) {
+        val player = controller ?: return
+        val factor = pitchFactor(semitones)
+        runCatching {
+            player.playbackParameters = player.playbackParameters.withPitch(factor)
+        }
+    }
+
+    /**
      * How loud the music plays.
      *
      * The player inside the service owns its own volume for the sleep timer's fade and
@@ -266,6 +285,7 @@ class Media3PlaybackEngine(
             shuffleEnabled = player.shuffleModeEnabled,
             repeatMode = player.repeatMode.toRepeatMode(),
             speed = player.playbackParameters.speed.coerceIn(MIN_SPEED, MAX_SPEED),
+            pitchSemitones = semitonesForPitch(player.playbackParameters.pitch),
             volume = streamVolume(),
             queue = cachedQueue,
             currentIndex = if (player.mediaItemCount == 0) -1 else player.currentMediaItemIndex,

@@ -130,6 +130,7 @@ fun NowPlayingScreen(
     onCancelSleepTimer: () -> Unit,
     onStopAfterSong: () -> Unit,
     onSetSpeed: (Float) -> Unit,
+    onSetPitch: (Int) -> Unit,
     onGoToAlbum: () -> Unit,
     onGoToArtist: () -> Unit,
     onQueueItemClick: (Int) -> Unit,
@@ -474,14 +475,14 @@ fun NowPlayingScreen(
             onDismiss = { dialog = null },
         )
 
-        PlayerDialog.SPEED -> ChoiceDialog(
-            title = "Playback speed",
-            options = SpeedChoices.map { it.second },
-            selectedIndex = SpeedChoices.indexOfFirst { abs(it.first - state.speed) < 0.01f },
-            onPick = { index ->
-                dialog = null
-                SpeedChoices.getOrNull(index)?.let { onSetSpeed(it.first) }
-            },
+        // A sheet rather than a list of rates: the speed and the pitch are shown
+        // together, each with the value it is set to, so the choice can be made while
+        // the song is playing.
+        PlayerDialog.SPEED -> SpeedPitchSheet(
+            speed = state.speed,
+            pitchSemitones = state.pitchSemitones,
+            onSpeed = onSetSpeed,
+            onPitch = onSetPitch,
             onDismiss = { dialog = null },
         )
 
@@ -556,7 +557,7 @@ private fun PlayerMenu(
             onClick = onSleepTimer,
         )
         DropdownMenuItem(
-            text = { Text("Playback speed") },
+            text = { Text("Speed and pitch") },
             leadingIcon = { Icon(Lucide.Gauge, contentDescription = null) },
             onClick = onSpeed,
         )
@@ -772,18 +773,6 @@ private val SleepChoices = listOf(
     SleepChoice(30 * 60_000L, "30 minutes"),
     SleepChoice(45 * 60_000L, "45 minutes"),
     SleepChoice(60 * 60_000L, "1 hour"),
-)
-
-/** The rates worth offering: half speed to well past double. */
-private val SpeedChoices = listOf(
-    0.5f to "0.5\u00d7",
-    0.75f to "0.75\u00d7",
-    1f to "1\u00d7",
-    1.25f to "1.25\u00d7",
-    1.5f to "1.5\u00d7",
-    2f to "2\u00d7",
-    2.5f to "2.5\u00d7",
-    3f to "3\u00d7",
 )
 
 /** Names the timer, and says how long is left when it is running. */
