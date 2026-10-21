@@ -1,5 +1,6 @@
 package com.exodidio.mimi.ui
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,11 +54,13 @@ private val AVATAR_OVERHANG = 48.dp
  * picture, a name and the buttons for those three, and anything else here would be a
  * settings page wearing a picture.
  *
- * Pictures are copied the instant one is chosen. The picker hands out a read that lasts
- * only as long as the app is running, so waiting for Save would leave a picture that is
- * gone the next time the app opens; the copy is made and the rest of the page can still be
- * discarded. The back arrow therefore discards the name and nothing that was already
- * written.
+ * Picking a picture opens the crop editor rather than saving straight away, so the frame
+ * the listener chose is the frame they get. The picture already in place is untouched until
+ * the new one is confirmed, and a cancel leaves the profile exactly as it was. The picker's
+ * read only lasts as long as the app is running, but the crop happens in the same breath as
+ * the pick and the confirmed bitmap is handed straight to the store as the dialog closes,
+ * so nothing is kept by a uri that will be gone tomorrow. The back arrow therefore discards
+ * the name and nothing that was already written.
  */
 @Composable
 fun ProfileScreen(
@@ -85,13 +88,44 @@ fun ProfileScreen(
         }
     }
 
+    // Held as strings because a Uri has no saver and a rotation in the middle of a crop
+    // should bring the editor back rather than silently drop the pick.
+    var avatarToCrop by rememberSaveable { mutableStateOf<String?>(null) }
+    var bannerToCrop by rememberSaveable { mutableStateOf<String?>(null) }
+
     val picturePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
-    ) { uri -> if (uri != null) profileViewModel.setAvatar(uri) }
+    ) { uri -> if (uri != null) avatarToCrop = uri.toString() }
 
     val bannerPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
-    ) { uri -> if (uri != null) profileViewModel.setBanner(uri) }
+    ) { uri -> if (uri != null) bannerToCrop = uri.toString() }
+
+    avatarToCrop?.let { picked ->
+        ImageCropperDialog(
+            source = Uri.parse(picked),
+            aspectRatio = 1f,
+            onCancel = { avatarToCrop = null },
+            onConfirm = { cropped ->
+                // Close first, then write: the editor's working copy is freed when it
+                // leaves the composition, and the store owns the finished bitmap.
+                avatarToCrop = null
+                profileViewModel.setAvatar(cropped)
+            },
+        )
+    }
+
+    bannerToCrop?.let { picked ->
+        ImageCropperDialog(
+            source = Uri.parse(picked),
+            aspectRatio = PROFILE_BANNER_ASPECT,
+            onCancel = { bannerToCrop = null },
+            onConfirm = { cropped ->
+                bannerToCrop = null
+                profileViewModel.setBanner(cropped)
+            },
+        )
+    }
 
     Column(
         modifier = modifier
@@ -141,7 +175,7 @@ fun ProfileScreen(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
-                onRemove = { profileViewModel.setAvatar(null) },
+                onRemove = { profileViewModel.setAvatar(uri = null) },
             )
 
             PictureActions(
@@ -152,7 +186,7 @@ fun ProfileScreen(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
-                onRemove = { profileViewModel.setBanner(null) },
+                onRemove = { profileViewModel.setBanner(uri = null) },
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -246,3 +280,6 @@ private const val PROFILE_AVATAR_PX = 512
 
 /** The banner edge in pixels, wide enough for a tablet and cheap enough to open. */
 private const val PROFILE_BANNER_PX = 1600
+
+/** The crop window's shape, which is also the shape the banner is drawn in everywhere. */
+private const val PROFILE_BANNER_ASPECT = 16f / 9f

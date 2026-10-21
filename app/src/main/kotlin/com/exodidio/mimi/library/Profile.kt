@@ -35,9 +35,11 @@ data class Profile(
  * Pictures are copied into the app's own storage rather than remembered by their picker
  * uri. The photo picker grants a read that lasts as long as the app is running, so a uri
  * would draw the picture today and a blank circle tomorrow; a copy keeps it for good.
- * Picking a picture also downscales it, because a twelve megapixel photograph drawn in a
- * 96dp circle is memory spent on detail nobody can see, while the file is opened every
- * time the drawer is pulled out.
+ * What gets copied is now the listener's crop rather than the original: the editor hands
+ * back a bitmap already cut to the frame and sized for where it is drawn, so the store
+ * only has to encode it. The uri overloads remain for callers that have no frame to show,
+ * and they still downscale, because a twelve megapixel photograph drawn in a 96dp circle
+ * is memory spent on detail nobody can see.
  *
  * Every write is on the IO dispatcher. Nothing here touches the database or the disk on
  * the frame that draws it.
@@ -67,6 +69,19 @@ class ProfileStore(private val context: Context) {
 
     /** Copies the chosen picture in as the banner, or removes the banner for null. */
     suspend fun setBanner(uri: Uri?) = keep(BANNER, uri, BANNER_EDGE)
+
+    /**
+     * Writes an avatar that the crop editor has already cut and sized.
+     *
+     * The caller hands over the only reference it has, so this frees the bitmap once it has
+     * been encoded. Reusing the uri path would mean decoding and cropping a second time
+     * from a picture the listener has already positioned, and the picker's read may be
+     * gone by then anyway.
+     */
+    suspend fun setAvatar(bitmap: Bitmap) = keep(AVATAR, bitmap)
+
+    /** Writes a banner that the crop editor has already cut and sized, freeing [bitmap]. */
+    suspend fun setBanner(bitmap: Bitmap) = keep(BANNER, bitmap)
 
     /** The avatar file, or null when no picture has been chosen. */
     fun avatarFile(): File? = fileFor(AVATAR).takeIf(::isPicture)
@@ -101,6 +116,35 @@ class ProfileStore(private val context: Context) {
                 scratch.copyTo(target, overwrite = true)
                 scratch.delete()
             }
+        }
+        Unit
+    }
+
+    /**
+     * Encodes a bitmap the crop editor produced, then frees it.
+     *
+     * Written beside the old picture and renamed over it for the same reason the uri path
+     * is: an encode that fails partway leaves the previous picture intact instead of a
+     * half-written file. The bitmap is freed in a finally block because a failed encode
+     * must not also cost the caller the memory it is holding.
+     */
+    private suspend fun keep(name: String, bitmap: Bitmap) = withContext(Dispatchers.IO) {
+        try {
+            val folder = folder()
+            if (!folder.isDirectory) folder.mkdirs()
+            val target = File(folder, name)
+            runCatching {
+                val scratch = File(target.parentFile, "$name.part")
+                FileOutputStream(scratch).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
+                }
+                if (!scratch.renameTo(target)) {
+                    scratch.copyTo(target, overwrite = true)
+                    scratch.delete()
+                }
+            }
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
         }
         Unit
     }

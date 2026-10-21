@@ -1,6 +1,7 @@
 package com.exodidio.mimi.ui
 
 import android.app.Application
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +76,31 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     fun setBanner(uri: Uri?) {
         viewModelScope.launch {
             store.setBanner(uri)
+            pictureRevision++
+            reload()
+        }
+    }
+
+    /**
+     * Keeps a picture the crop editor has already cut to the frame.
+     *
+     * The revision is bumped for the same reason the uri path bumps it: the file keeps its
+     * name, so nothing else would tell the home avatar to read the new picture. The store
+     * frees [bitmap] once it has been encoded, which is why it is not held in any state
+     * here — a crop is several megabytes and only the file needs to outlive this call.
+     */
+    fun setAvatar(bitmap: Bitmap) {
+        viewModelScope.launch {
+            store.setAvatar(bitmap)
+            pictureRevision++
+            reload()
+        }
+    }
+
+    /** Keeps a banner the crop editor has already cut to the frame, freeing [bitmap]. */
+    fun setBanner(bitmap: Bitmap) {
+        viewModelScope.launch {
+            store.setBanner(bitmap)
             pictureRevision++
             reload()
         }
