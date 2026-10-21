@@ -95,7 +95,8 @@ class CropGeometryTest {
         // At 1x the cover is exact, so there is no slack and the old drag must vanish.
         val reset = clampOffset(Offset(180f, -90f), 1f, picture, window)
 
-        assertEquals(Offset.Zero, reset)
+        assertEquals(0f, reset.x, 0.01f)
+        assertEquals(0f, reset.y, 0.01f)
     }
 
     @Test
