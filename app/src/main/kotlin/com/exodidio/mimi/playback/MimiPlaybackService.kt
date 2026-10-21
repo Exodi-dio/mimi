@@ -75,7 +75,7 @@ class MimiPlaybackService : MediaSessionService() {
                     intent.getIntExtra(Intent.EXTRA_STATE, -1) == 1
 
                 BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED ->
-                    intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1) ==
+                    intent.getIntExtra(BLUETOOTH_PROFILE_STATE, -1) ==
                         BluetoothProfile.STATE_CONNECTED
 
                 else -> false
@@ -281,5 +281,14 @@ class MimiPlaybackService : MediaSessionService() {
     private companion object {
         /** Quiet enough to hear a notification over, loud enough to know the song is there. */
         const val DUCKED_VOLUME = 0.22f
+
+        /**
+         * The state extra carried by a profile connection broadcast.
+         *
+         * The platform names this in `BluetoothProfile`, but the constant is not part of
+         * the public SDK this build compiles against. The wire value is stable and is the
+         * one the system actually sends.
+         */
+        const val BLUETOOTH_PROFILE_STATE = "android.bluetooth.profile.extra.STATE"
     }
 }
