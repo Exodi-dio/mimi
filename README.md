@@ -19,7 +19,7 @@ and it is not meant to be.
 | --- | --- |
 | Library scan, cached so it never rescans on open | Theming / Apple Music visuals |
 | Eight library sections: songs, albums, artists, playlists, genres, composers, years, folders | Last.fm scrobbling |
-| Albums and artists told apart by their own tags, so a compilation does not credit every guest | Crossfade, ReplayGain, a second playback engine, and turning gapless off |
+| Albums and artists told apart by their own tags, so a compilation does not credit every guest | A second playback engine |
 | Playlists: make, rename, delete, add, remove and reorder songs | Branding / app icon |
 | Songs sorted by title, artist, album, length, date added or file name, ties broken predictably | R8 shrinking |
 | Albums sorted by name, album artist or song count; artists by name, albums or song count | Backup files, and choosing a playlist export folder |
@@ -35,6 +35,10 @@ and it is not meant to be.
 | Up next queue: reorder, jump, remove, play next, add to queue, clear what is coming | |
 | Keep the queue as a playlist | |
 | Equaliser with a switch and seven presets, spread across however many bands the device has | |
+| A bass boost with a subsonic filter and a preamp trim, so the weight cannot clip the rest of the mix | |
+| Crossfade: the end of one track is faded down under the start of the next, over 3, 6, 9 or 12 seconds | The fade on play and pause, which is remembered but not applied |
+| ReplayGain read from the file's own tags, by track or by album, with a preamp of your own | |
+| Gapless playback that can be turned off, which leaves a short silence between the tracks | |
 | Lyrics read out of the files themselves, timed or not | |
 | Word-level lyrics read out of QRC files, with the words lighting up one at a time as the song plays | Word timings from the lyrics services, which only ever give whole lines |
 | A line read from right to left swept from the right, and Korean and Japanese particles kept with the word they belong to | |

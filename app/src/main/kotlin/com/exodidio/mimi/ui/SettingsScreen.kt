@@ -60,6 +60,7 @@ private enum class SettingsChoice {
     ENGINE,
     EQ_BANDS,
     REPLAYGAIN,
+    REPLAYGAIN_PREAMP,
     METADATA,
     NOW_PLAYING_THEME,
     EXPORT_PATH,
@@ -87,8 +88,16 @@ private val EqBandOptions = listOf(5, 10, 15, 20)
 /** How the metadata download row describes its choices. */
 private val MetadataOptions = listOf("Always", "Wi-Fi only", "Never")
 
-/** The ways ReplayGain could be applied, none of which this build implements. */
-private val ReplayGainOptions = listOf("None", "Track", "Album")
+/** The ways ReplayGain can be applied, from the values the file may carry. */
+private val ReplayGainOptions =
+    listOf(Settings.REPLAYGAIN_NONE, Settings.REPLAYGAIN_TRACK, Settings.REPLAYGAIN_ALBUM)
+
+/**
+ * The preamps the ReplayGain row offers, in decibels.
+ *
+ * The same steps the equaliser uses, so the two are read the same way.
+ */
+private val ReplayGainPreampOptionsDb = listOf(-12f, -9f, -6f, -3f, 0f, 3f, 6f, 9f, 12f)
 
 /** The schedules the automatic backup row offers. */
 private val BackupFrequencyOptions = listOf("Daily", "Weekly", "Monthly")
@@ -311,6 +320,20 @@ fun SettingsGroupScreen(
             selectedIndex = ReplayGainOptions.indexOf(settings.replayGainMode).coerceAtLeast(0),
             onPick = { index ->
                 onChange { it.copy(replayGainMode = ReplayGainOptions[index]) }
+                openChoice = null
+            },
+            onDismiss = { openChoice = null },
+        )
+
+        SettingsChoice.REPLAYGAIN_PREAMP -> ChoiceDialog(
+            title = "ReplayGain preamp",
+            options = ReplayGainPreampOptionsDb.map { preampLabel(it) },
+            selectedIndex = nearestIndex(
+                ReplayGainPreampOptionsDb.map { it.toInt() },
+                settings.replayGainPreampDb.toInt(),
+            ),
+            onPick = { index ->
+                onChange { it.copy(replayGainPreampDb = ReplayGainPreampOptionsDb[index]) }
                 openChoice = null
             },
             onDismiss = { openChoice = null },
@@ -749,15 +772,11 @@ private fun SettingsEntryRow(
             onClick = { onChoose(SettingsChoice.REPLAYGAIN) },
         )
 
-        // Dimmed until ReplayGain is applied at all. The row reports the stored preamp so
-        // the shape matches the reference, but offering a tap would promise an adjustment
-        // this build cannot make.
         "playback.replaygain_preamp" -> SettingsActionRow(
             title = entry.title,
             subtitle = subtitle,
-            value = "${settings.replayGainPreampDb} dB",
-            enabled = false,
-            onClick = { },
+            value = preampLabel(settings.replayGainPreampDb),
+            onClick = { onChoose(SettingsChoice.REPLAYGAIN_PREAMP) },
         )
 
         "playback.duck_on_focus_loss" -> SettingsToggleRow(
@@ -1029,6 +1048,17 @@ private fun crossfadeLabel(millis: Int): String = when {
     millis <= 0 -> "off"
     millis % 1_000 == 0 -> "${millis / 1_000}s"
     else -> "$millis ms"
+}
+
+/**
+ * A preamp as it is read out.
+ *
+ * The sign is always shown, so a row of them lines up and a preamp of nothing does not
+ * look like one that has been forgotten.
+ */
+private fun preampLabel(decibels: Float): String {
+    val value = decibels.toInt()
+    return if (value > 0) "+$value dB" else "$value dB"
 }
 
 /**

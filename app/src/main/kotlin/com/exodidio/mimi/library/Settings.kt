@@ -85,7 +85,7 @@ data class Settings(
     val playbackEngine: String = SYSTEM_ENGINE,
     /** How many bands the equaliser is asked for. The device decides what it can give. */
     val eqBandCount: Int = 10,
-    /** Which ReplayGain field the player would normalise by. */
+    /** Which ReplayGain field the music is normalised by. */
     val replayGainMode: String = REPLAYGAIN_NONE,
     /** Preamp in decibels, applied only when ReplayGain is on. */
     val replayGainPreampDb: Float = 0f,
@@ -110,6 +110,13 @@ data class Settings(
     val equalizerPresetKey: String = EQUALIZER_FLAT_KEY,
     /** The curve itself, which stops matching its preset as soon as a band is dragged. */
     val equalizerGains: List<Float> = EQUALIZER_FLAT_CURVE,
+    /**
+     * How much weight the bass boost adds, as a percentage.
+     *
+     * Nothing is added at zero, which is where it starts: the boost is asked for
+     * explicitly rather than being part of the equaliser's curve.
+     */
+    val bassBoostStrength: Int = 0,
     /** Curves the listener named and keeps. */
     val equalizerProfiles: List<EqualizerProfile> = emptyList(),
     /** Write Chinese and Korean words out in latin letters beneath the characters. */
@@ -227,8 +234,14 @@ data class Settings(
         /** The only engine this build has, named as the row names it. */
         const val SYSTEM_ENGINE = "System (MediaPlayer)"
 
-        /** ReplayGain switched off, which is the only mode that does anything today. */
+        /** ReplayGain switched off, which is the only mode that does nothing at all. */
         const val REPLAYGAIN_NONE = "None"
+
+        /** ReplayGain by the value the file carries for the track on its own. */
+        const val REPLAYGAIN_TRACK = "Track"
+
+        /** ReplayGain by the value the file carries for the album. */
+        const val REPLAYGAIN_ALBUM = "Album"
 
         /** The default look of the player, and the only one that exists. */
         const val DEFAULT_NOW_PLAYING_THEME = "Default"
@@ -277,6 +290,7 @@ data class Settings(
         private const val EQUALIZER_ENABLED = "setting.equalizer_enabled"
         private const val EQUALIZER_PRESET = "setting.equalizer_preset"
         private const val EQUALIZER_GAINS = "setting.equalizer_gains"
+        private const val BASS_BOOST_STRENGTH = "setting.bass_boost_strength"
         private const val EQUALIZER_PROFILES = "setting.equalizer_profiles"
         private const val ROMANIZE_LYRICS = "setting.romanize_lyrics"
         private const val EXCLUDED_FOLDERS = "setting.excluded_folders"
@@ -391,6 +405,9 @@ data class Settings(
                 equalizerEnabled = stored.boolean(EQUALIZER_ENABLED, defaults.equalizerEnabled),
                 equalizerPresetKey = stored[EQUALIZER_PRESET] ?: defaults.equalizerPresetKey,
                 equalizerGains = decodeCurve(stored[EQUALIZER_GAINS]) ?: defaults.equalizerGains,
+                bassBoostStrength = (stored[BASS_BOOST_STRENGTH]?.toIntOrNull()
+                    ?: defaults.bassBoostStrength)
+                    .coerceIn(0, 100),
                 equalizerProfiles = decodeProfiles(stored[EQUALIZER_PROFILES]),
                 romanizeLyrics = stored.boolean(ROMANIZE_LYRICS, defaults.romanizeLyrics),
                 excludedFolders = decodeExcludedFolders(stored[EXCLUDED_FOLDERS]),
@@ -472,6 +489,7 @@ data class Settings(
             MetaEntry(EQUALIZER_ENABLED, if (settings.equalizerEnabled) "1" else "0"),
             MetaEntry(EQUALIZER_PRESET, settings.equalizerPresetKey),
             MetaEntry(EQUALIZER_GAINS, encodeCurve(settings.equalizerGains)),
+            MetaEntry(BASS_BOOST_STRENGTH, settings.bassBoostStrength.toString()),
             MetaEntry(EQUALIZER_PROFILES, encodeProfiles(settings.equalizerProfiles)),
             MetaEntry(ROMANIZE_LYRICS, if (settings.romanizeLyrics) "1" else "0"),
             MetaEntry(EXCLUDED_FOLDERS, encodeExcludedFolders(settings.excludedFolders)),

@@ -221,6 +221,54 @@ fun EqualizerDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 Text(
+                    text = "Bass boost",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+
+                Text(
+                    text = "Extra weight at the bottom of the range. The level is trimmed " +
+                        "by as much as the boost adds, so it cannot clip the rest of the mix.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "Strength",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = "${settings.bassBoostStrength}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (settings.bassBoostStrength > 0) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+
+                Slider(
+                    value = settings.bassBoostStrength.toFloat(),
+                    onValueChange = { value ->
+                        onChange { it.copy(bassBoostStrength = value.toInt().coerceIn(0, 100)) }
+                    },
+                    valueRange = 0f..100f,
+                    // Five points between the ends, so a drag lands on a number worth
+                    // reading.
+                    steps = 19,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Text(
                     text = "Presets",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -265,8 +265,9 @@ val settingsCatalog: List<SettingEntry> = listOf(
         group = SettingsGroupId.AUDIO,
         section = "PLAYBACK",
         title = "About fade and crossfade",
-        subtitle = "Both choices are remembered, but this build cuts between tracks rather " +
-            "than fading or overlapping them.",
+        subtitle = "The crossfade really overlaps: the track that is ending is faded down " +
+            "while the next one comes up over it. The fade on play and pause is still " +
+            "remembered but not applied.",
         keywords = listOf("fade", "crossfade", "not applied", "beta", "gap"),
         note = true,
     ),
@@ -284,10 +285,9 @@ val settingsCatalog: List<SettingEntry> = listOf(
         group = SettingsGroupId.AUDIO,
         section = "PLAYBACK",
         title = "About gapless playback",
-        subtitle = "The system decoder already joins tracks that carry gapless metadata, " +
-            "and this build has no way to turn that off. The switch is remembered for a " +
-            "later engine.",
-        keywords = listOf("gapless", "gap", "not applied", "decoder", "join"),
+        subtitle = "The decoder joins tracks that carry gapless metadata. With this off, a " +
+            "short silence is left between the tracks so the join cannot close the gap.",
+        keywords = listOf("gapless", "gap", "silence", "decoder", "join"),
         note = true,
     ),
     SettingEntry(
@@ -348,7 +348,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
         group = SettingsGroupId.AUDIO,
         section = "REPLAYGAIN",
         title = "ReplayGain source mode",
-        subtitle = "Normalize track-to-track loudness.",
+        subtitle = "Normalize track-to-track loudness from the tags in the file.",
         keywords = listOf("replaygain", "loudness", "volume", "normalize", "gain", "track"),
     ),
     SettingEntry(
@@ -364,9 +364,10 @@ val settingsCatalog: List<SettingEntry> = listOf(
         group = SettingsGroupId.AUDIO,
         section = "REPLAYGAIN",
         title = "About ReplayGain",
-        subtitle = "ReplayGain is not applied to playback yet. The mode and preamp are " +
-            "remembered for a later build, and nothing in the audio is changed.",
-        keywords = listOf("replaygain", "not applied", "loudness", "normalize"),
+        subtitle = "The gain in the file is read from its own tags and applied to the " +
+            "volume, with the preamp added to it. A file that carries no tags plays as " +
+            "it was recorded.",
+        keywords = listOf("replaygain", "loudness", "normalize", "tags", "volume"),
         note = true,
     ),
     SettingEntry(
