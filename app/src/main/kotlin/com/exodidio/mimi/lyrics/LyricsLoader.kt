@@ -32,7 +32,7 @@ class LyricsLoader(private val context: Context) {
             }
         }.getOrNull()
 
-        val parsed = raw?.let(LyricsParser::parse) ?: return Lyrics.EMPTY
+        val parsed = raw?.let(LyricsFormats::parse) ?: return Lyrics.EMPTY
         return if (parsed.isEmpty) Lyrics.EMPTY else parsed
     }
 

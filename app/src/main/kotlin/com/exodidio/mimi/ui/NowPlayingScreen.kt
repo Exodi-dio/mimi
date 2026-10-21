@@ -254,6 +254,7 @@ fun NowPlayingScreen(
                             lyrics = lyrics.lyrics,
                             positionMs = state.positionMs,
                             onSeek = onSeek,
+                            isPlaying = state.isPlaying,
                             modifier = Modifier.fillMaxSize(),
                         )
 

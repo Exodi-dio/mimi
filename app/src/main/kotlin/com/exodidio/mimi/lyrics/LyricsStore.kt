@@ -24,7 +24,7 @@ class LyricsStore(private val context: Context) {
         runCatching {
             val file = fileFor(key)
             if (!file.isFile) return@runCatching Lyrics.EMPTY
-            LyricsParser.parse(file.readText())
+            LyricsFormats.parse(file.readText())
         }.getOrDefault(Lyrics.EMPTY)
     }
 

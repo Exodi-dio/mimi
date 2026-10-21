@@ -40,7 +40,7 @@ class LyricsFinder(
         cache.get(question.key)?.let { return it }
 
         val found = search(question).firstOrNull()
-            ?.let { LyricsParser.parse(it.content) }
+            ?.let { LyricsFormats.parse(it.content) }
             ?: Lyrics.EMPTY
 
         cache.put(question.key, found)

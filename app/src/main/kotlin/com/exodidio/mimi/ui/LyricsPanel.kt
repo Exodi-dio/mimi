@@ -1,5 +1,6 @@
 package com.exodidio.mimi.ui
 
+import android.os.SystemClock
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -19,24 +20,36 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import com.exodidio.mimi.MimiApplication
 import com.exodidio.mimi.lyrics.AndroidRomanizationEngine
+import com.exodidio.mimi.lyrics.KaraokeSweep
+import com.exodidio.mimi.lyrics.LEFT_TO_RIGHT_MARK
+import com.exodidio.mimi.lyrics.LyricWord
 import com.exodidio.mimi.lyrics.Lyrics
 import com.exodidio.mimi.lyrics.RomanizeLyrics
 import com.exodidio.mimi.lyrics.RomanizedStatus
+import com.exodidio.mimi.lyrics.SweptWord
 
 /** What there is to show for the song playing right now. */
 sealed interface LyricsState {
@@ -91,6 +104,7 @@ fun LyricsPanel(
     positionMs: Long,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    isPlaying: Boolean = false,
 ) {
     // The button over the words owns the choice, starting from the setting so a listener
     // who always wants the readings does not press it again for every song.
@@ -168,11 +182,17 @@ fun LyricsPanel(
                 itemsIndexed(lyrics.lines) { index, line ->
                     val distance = distances[index] ?: (LYRIC_SIDE_LINES + 1)
                     val visible = distance <= LYRIC_SIDE_LINES
+                    val current = index == currentIndex
                     LyricText(
                         text = line.text,
                         romanised = romanised?.getOrNull(index).orEmpty(),
-                        current = index == currentIndex,
-                        alpha = if (index == currentIndex) 1f else lyricAlpha(distance),
+                        current = current,
+                        alpha = if (current) 1f else lyricAlpha(distance),
+                        // Only the line being sung is swept, because the words of the lines
+                        // around it have not been reached yet.
+                        words = if (current) line.words else emptyList(),
+                        positionMs = positionMs,
+                        playing = isPlaying,
                         modifier = Modifier
                             .fillMaxWidth()
                             // A line nobody can see is not something to be tapped: the
@@ -216,6 +236,10 @@ fun LyricsMessage(text: String, modifier: Modifier = Modifier) {
  *
  * The size is fixed rather than scaled with the distance, because the reference sheet
  * keeps every visible line the same size and lets the fading alone carry the distance.
+ *
+ * A line that knows when each of its words is sung is drawn word by word, with the word
+ * being sung filling up as it goes. A line that does not know is drawn all at once, the
+ * way it always was.
  */
 @Composable
 private fun LyricText(
@@ -225,10 +249,14 @@ private fun LyricText(
     modifier: Modifier = Modifier,
     romanised: String = "",
     fontSize: TextUnit = 33.sp,
+    words: List<LyricWord> = emptyList(),
+    positionMs: Long = 0L,
+    playing: Boolean = false,
 ) {
     Column(modifier = modifier.padding(horizontal = 8.dp)) {
+        val swept = rememberSweep(words, text, positionMs, playing)
         Text(
-            text = text,
+            text = rememberSweepText(swept, text, alpha),
             fontSize = fontSize,
             lineHeight = fontSize * 1.25f,
             fontWeight = FontWeight.Bold,
@@ -249,6 +277,112 @@ private fun LyricText(
         }
     }
 }
+
+/**
+ * The words of a line, lit up as the song reaches them.
+ *
+ * The engine reports the position twice a second, which is too coarse to show a word
+ * filling up, so the clock here carries the position forward at the rate the song was
+ * last seen to advance. The sweep then moves smoothly and stops when the song does.
+ *
+ * A line without word timings gives nothing back, because there is nothing to sweep.
+ */
+@Composable
+private fun rememberSweep(
+    words: List<LyricWord>,
+    text: String,
+    positionMs: Long,
+    playing: Boolean,
+): List<SweptWord>? {
+    var shown by remember { mutableLongStateOf(positionMs) }
+    var anchor by remember { mutableLongStateOf(positionMs) }
+    var anchorAt by remember { mutableLongStateOf(0L) }
+    var rate by remember { mutableFloatStateOf(1f) }
+
+    LaunchedEffect(positionMs, playing) {
+        val now = SystemClock.elapsedRealtime()
+        val elapsed = now - anchorAt
+        val step = positionMs - anchor
+        // A jump means the listener moved the song rather than the song moving on, so
+        // the rate is left alone and the sweep simply starts again from where the song
+        // now is.
+        if (playing && elapsed > 0L && step > 0L && step <= MAX_STEP_MS) {
+            rate = (step.toFloat() / elapsed.toFloat()).coerceIn(0f, 2f)
+        }
+        anchor = positionMs
+        anchorAt = now
+    }
+
+    LaunchedEffect(words.isNotEmpty(), playing) {
+        if (words.isEmpty() || !playing) return@LaunchedEffect
+        while (true) {
+            withFrameNanos { }
+            val now = SystemClock.elapsedRealtime()
+            shown = anchor + ((now - anchorAt) * rate).toLong()
+        }
+    }
+
+    val line = remember(words, text) { LyricLine(timeMs = null, text = text, words = words) }
+    val swept = remember(line, shown) { KaraokeSweep.sweep(line, shown) }
+    return swept.ifEmpty { null }
+}
+
+/**
+ * The line of words, with each word drawn at the strength it is sung at.
+ *
+ * The word being sung fills up over the time it is sung for, the words already sung sit
+ * back a little, and the words still to come are dimmer still. A line that is read from
+ * right to left keeps the order it was given, so the light travels from the right.
+ */
+@Composable
+private fun rememberSweepText(
+    swept: List<SweptWord>?,
+    text: String,
+    alpha: Float,
+): AnnotatedString {
+    val base = MaterialTheme.colorScheme.onSurface
+    val rightToLeft = KaraokeSweep.isRightToLeft(text)
+
+    return remember(swept, alpha, base, rightToLeft) {
+        if (swept == null) {
+            AnnotatedString(text)
+        } else {
+            buildAnnotatedString {
+                for (word in swept) {
+                    append(word.gap)
+                    // The mark keeps a line that is read from right to left in the order
+                    // the sweep gave it, rather than turning it around once more.
+                    if (rightToLeft) append(LEFT_TO_RIGHT_MARK)
+                    pushStyle(SpanStyle(color = wordColour(base, alpha, word)))
+                    append(word.drawn)
+                    pop()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * How strongly a word is drawn, given how much of it has been sung.
+ *
+ * The word being sung fills from the strength of a word that has not started yet up to
+ * the strength of the line. The words that have been sung already sit in between, so
+ * that the eye can tell them from the one that is being sung.
+ */
+private fun wordColour(base: Color, alpha: Float, word: SweptWord): Color = when {
+    word.current -> base.copy(alpha = alpha * lerp(UNLIT_WORD, 1f, word.brightness))
+    word.brightness >= 1f -> base.copy(alpha = alpha * SUNG_WORD)
+    else -> base.copy(alpha = alpha * UNLIT_WORD)
+}
+
+/** The strength of a word that has not been started yet. */
+private const val UNLIT_WORD = 0.35f
+
+/** The strength of a word that has been sung already. */
+private const val SUNG_WORD = 0.62f
+
+/** The largest step the song can make between two readings before it counts as a jump. */
+private const val MAX_STEP_MS = 2_000L
 
 /**
  * The same lines written out in latin letters, or null when that was not asked for.

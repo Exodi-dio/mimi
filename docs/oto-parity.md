@@ -12,6 +12,7 @@ every other list shows, so it goes first. Decoration comes last.
 | Feature | Where |
 | --- | --- |
 | Synchronised and plain lyrics | `ui/LyricsPanel.kt`, `lyrics/LyricsParser.kt` |
+| Word-level lyrics, swept word by word | `lyrics/QrcParser.kt`, `lyrics/KaraokeSweep.kt` |
 | Finding lyrics for a song that has none | `ui/FindLyricsDialog.kt` (two databases) |
 | Lyrics kept per song | `lyrics/LyricsStore.kt` |
 | Transliterated lyrics | `ui/RomanizationButton.kt`, `lyrics/RomanizeLyrics.kt` |

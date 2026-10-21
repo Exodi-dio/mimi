@@ -36,6 +36,8 @@ and it is not meant to be.
 | Keep the queue as a playlist | |
 | Equaliser with a switch and seven presets, spread across however many bands the device has | |
 | Lyrics read out of the files themselves, timed or not | |
+| Word-level lyrics read out of QRC files, with the words lighting up one at a time as the song plays | Word timings from the lyrics services, which only ever give whole lines |
+| A line read from right to left swept from the right, and Korean and Japanese particles kept with the word they belong to | |
 | Lyrics looked up for a song whose file has none, from the menu on the now playing screen, one song at a time and only when asked | |
 | Found lyrics kept beside the app for that song, with a preview before one is chosen | |
 | Transliterated lyrics, switched by a button over the words, working with no connection | |
