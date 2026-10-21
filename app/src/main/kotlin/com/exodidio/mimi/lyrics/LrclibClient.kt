@@ -1,101 +1,71 @@
 package com.exodidio.mimi.lyrics
 
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
 /**
- * Asks lrclib.net for lyrics.
+ * Asks lrclib.net about a song.
  *
- * A public database: no account, no key, nothing to configure. Two questions are asked of
- * it. `/api/get` is an exact match on artist, title, album and length, and a hit there is
- * the song that was asked about. `/api/search` is looser, for the ordinary case where the
- * tags disagree with the database -- a file reading "1979" against a record filed as
- * "1979 - Remastered" is common enough to be worth a second question.
+ * A public database with no account and no key, which is why it is asked first: a hit here
+ * is instant and costs the listener nothing to arrange.
  *
- * Only two GET requests, so [HttpURLConnection] rather than a networking stack: a
- * dependency that arrives with interceptors and a JSON parser would be a poor trade. Every
- * failure comes back empty. A song without lyrics is a small annoyance; an app that stops
- * playing because a request timed out is not.
+ * Two questions are asked of it. The first is an exact match on artist, title, album and
+ * length. When that misses, a looser search by title and artist — because a tag reading
+ * "1979" against a record filed as "1979 - Remastered" is the ordinary case, and a second
+ * of silence at the start of a file is enough to make the lengths disagree.
  */
 class LrclibClient {
 
-    /** The exact match, or an empty list when the database does not have this song. */
-    suspend fun lookup(question: LyricsQuery): List<Map<String, String>> =
-        withContext(Dispatchers.IO) {
-            val title = question.title.trim()
-            if (title.isEmpty()) return@withContext emptyList()
+    /** Every song it believes could be this one, the most exact first. */
+    suspend fun search(question: LyricsQuery): List<LyricsCandidate> {
+        if (question.title.isBlank()) return emptyList()
 
-            val parameters = buildList {
-                add("track_name" to title)
-                question.artist?.takeIf { it.isNotBlank() }?.let { add("artist_name" to it.trim()) }
-                question.album?.takeIf { it.isNotBlank() }?.let { add("album_name" to it.trim()) }
-                // The signature includes the length, and the database's copy of it is only
-                // as good as the tags it was submitted from, so it is offered but not
-                // insisted on.
-                if (question.durationMs > 0) {
-                    add("duration" to (question.durationMs / 1_000).toString())
-                }
-            }
+        val exact = answer(ENDPOINT_LOOKUP, lookupParameters(question))
+        if (exact.isNotEmpty()) return exact
 
-            read(BASE + "/api/get?" + asQueryString(parameters))
-        }
-
-    /** A looser question, for when the exact one found nothing. */
-    suspend fun search(question: LyricsQuery): List<Map<String, String>> =
-        withContext(Dispatchers.IO) {
-            val title = question.title.trim()
-            if (title.isEmpty()) return@withContext emptyList()
-
-            val parameters = buildList {
-                add("track_name" to title)
-                question.artist?.takeIf { it.isNotBlank() }?.let { add("artist_name" to it.trim()) }
-            }
-
-            read(BASE + "/api/search?" + asQueryString(parameters))
-        }
-
-    /** The parsed answer, or nothing at all when the request did not land. */
-    private fun read(address: String): List<Map<String, String>> {
-        val body = request(address) ?: return emptyList()
-        return runCatching { LyricsJson.objects(body) }.getOrDefault(emptyList())
+        return answer(ENDPOINT_SEARCH, searchParameters(question))
     }
 
-    private fun asQueryString(parameters: List<Pair<String, String>>): String =
-        parameters.joinToString("&") { (name, value) ->
-            name + "=" + URLEncoder.encode(value, "UTF-8")
-        }
+    private suspend fun answer(
+        endpoint: String,
+        parameters: List<Pair<String, String>>,
+    ): List<LyricsCandidate> {
+        val address = BASE + endpoint + "?" + queryString(parameters)
+        val body = fetchText(address) ?: return emptyList()
+        return runCatching { LyricsJson.objects(body) }
+            .getOrDefault(emptyList())
+            .mapNotNull(::toCandidate)
+    }
 
-    private fun request(address: String): String? {
-        var opened: HttpURLConnection? = null
-        return try {
-            val connection = (URL(address).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = TIMEOUT_MS
-                readTimeout = TIMEOUT_MS
-                setRequestProperty("User-Agent", USER_AGENT)
-                setRequestProperty("Accept", "application/json")
-            }
-            opened = connection
+    private fun lookupParameters(question: LyricsQuery): List<Pair<String, String>> = buildList {
+        add("track_name" to question.title)
+        question.artist?.takeIf { it.isNotBlank() }?.let { add("artist_name" to it) }
+        question.album?.takeIf { it.isNotBlank() }?.let { add("album_name" to it) }
+        if (question.durationMs > 0) add("duration" to (question.durationMs / 1_000).toString())
+    }
 
-            // Not an error: the database saying it does not have this song is an answer.
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                null
-            } else {
-                connection.inputStream.bufferedReader().use { it.readText() }
-            }
-        } catch (_: Exception) {
-            null
-        } finally {
-            runCatching { opened?.disconnect() }
-        }
+    private fun searchParameters(question: LyricsQuery): List<Pair<String, String>> = buildList {
+        add("track_name" to question.title)
+        question.artist?.takeIf { it.isNotBlank() }?.let { add("artist_name" to it) }
+    }
+
+    private fun toCandidate(entry: Map<String, String>): LyricsCandidate? {
+        val timed = entry["syncedLyrics"]?.takeIf { it.isNotBlank() }
+        val plain = entry["plainLyrics"]?.takeIf { it.isNotBlank() }
+        val content = timed ?: plain ?: return null
+
+        return LyricsCandidate(
+            provider = if (timed != null) PROVIDER_TIMED else PROVIDER_PLAIN,
+            trackName = entry["trackName"].orEmpty(),
+            artistName = entry["artistName"].orEmpty(),
+            // This database counts in seconds; the rest of the app counts in milliseconds.
+            durationMs = ((entry["duration"]?.toDoubleOrNull() ?: 0.0) * 1_000.0).toLong(),
+            content = content,
+        )
     }
 
     private companion object {
         const val BASE = "https://lrclib.net"
-        const val TIMEOUT_MS = 8_000
-        const val USER_AGENT = "MIMI/1.0 (Android; local music player)"
+        const val ENDPOINT_LOOKUP = "/api/get"
+        const val ENDPOINT_SEARCH = "/api/search"
+        const val PROVIDER_TIMED = "lrclib-synced"
+        const val PROVIDER_PLAIN = "lrclib-plain"
     }
 }

@@ -5,6 +5,7 @@ import com.exodidio.mimi.library.LibraryRepository
 import com.exodidio.mimi.library.MimiDatabase
 import com.exodidio.mimi.library.SettingsStore
 import com.exodidio.mimi.lyrics.LyricsFinder
+import com.exodidio.mimi.lyrics.LyricsStore
 import com.exodidio.mimi.lyrics.LyricsLoader
 import com.exodidio.mimi.playback.SleepTimer
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +36,14 @@ class MimiApplication : Application() {
      * has already been told, so it should outlive any one screen.
      */
     val lyricsFinder: LyricsFinder by lazy { LyricsFinder() }
+
+    /**
+     * Words that were found and kept, for songs whose files carry none.
+     *
+     * A lyric cannot be written back into the listener's music, so keeping one means
+     * keeping it beside the app rather than in the file it came from.
+     */
+    val lyricsStore: LyricsStore by lazy { LyricsStore(this) }
 
     /** The countdown that stops the music, kept where the screen cannot end it. */
     val sleepTimer: SleepTimer by lazy { SleepTimer(scope) }

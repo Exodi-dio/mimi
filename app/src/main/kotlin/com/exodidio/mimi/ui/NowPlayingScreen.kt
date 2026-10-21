@@ -47,6 +47,7 @@ import com.composables.icons.lucide.Pause
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Repeat
 import com.composables.icons.lucide.Repeat1
+import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Shuffle
 import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
@@ -93,10 +94,14 @@ fun NowPlayingScreen(
     modifier: Modifier = Modifier,
 ) {
     val current = state.current
-    val lyricsState = rememberLyrics(current?.mediaId)
+    // Words that have just been found and kept are not in the file, so the read that
+    // produced the empty sheet has to be asked again for them to appear.
+    var lyricsVersion by remember { mutableStateOf(0) }
+    val lyricsState = rememberLyrics(mediaId = current?.mediaId, version = lyricsVersion)
 
     var menuOpen by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<PlayerDialog?>(null) }
+    var findingLyrics by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -136,6 +141,14 @@ fun NowPlayingScreen(
                         onClick = {
                             menuOpen = false
                             dialog = PlayerDialog.SPEED
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Find lyrics") },
+                        leadingIcon = { Icon(Lucide.Search, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            findingLyrics = true
                         },
                     )
                     if (!current?.album.isNullOrBlank()) {
@@ -190,22 +203,7 @@ fun NowPlayingScreen(
                     )
 
                     LyricsState.Loading -> LyricsMessage("Looking for lyrics\u2026")
-                    LyricsState.None -> MissingLyrics(
-                        // The player knows what is playing as a queue item, which is all a
-                        // lyrics database needs: a name, who it is by, and how long it runs.
-                        question = current?.let { playing ->
-                            LyricsQuery(
-                                key = playing.mediaId,
-                                title = playing.title,
-                                artist = playing.artist,
-                                album = playing.album,
-                                durationMs = state.durationMs,
-                            )
-                        },
-                        positionMs = state.positionMs,
-                        onSeek = onSeek,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    LyricsState.None -> MissingLyrics(modifier = Modifier.fillMaxSize())
                 }
 
                 PlayerFace.ARTWORK -> Column(
@@ -356,6 +354,26 @@ fun NowPlayingScreen(
         )
 
         null -> Unit
+    }
+
+    val playing = current
+    if (findingLyrics && playing != null) {
+        FindLyricsDialog(
+            // The player knows what is playing as a queue item, which is all a lyrics
+            // database needs: a name, who it is by, and how long it runs.
+            question = LyricsQuery(
+                key = playing.mediaId,
+                title = playing.title,
+                artist = playing.artist,
+                album = playing.album,
+                durationMs = state.durationMs,
+            ),
+            onKept = {
+                findingLyrics = false
+                lyricsVersion++
+            },
+            onDismiss = { findingLyrics = false },
+        )
     }
 }
 

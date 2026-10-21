@@ -349,15 +349,9 @@ private fun PlaybackPage(
     )
     SettingsToggleRow(
         title = "Read lyrics in latin letters",
-        subtitle = "Puts a transliteration under Chinese and Korean words. The alphabets are already in the app, so it works with no connection.",
+        subtitle = "Puts a transliteration under Chinese and Korean words, and starts the lyrics view that way. The button over the words switches it for the song in front of you. The alphabets are already in the app, so it works with no connection.",
         checked = settings.romanizeLyrics,
         onCheckedChange = { value -> onChange { it.copy(romanizeLyrics = value) } },
-    )
-    SettingsToggleRow(
-        title = "Look for lyrics online",
-        subtitle = "Offers a search for a song whose file has no words. Only ever one song at a time, only when asked, and the only thing in the app that uses the internet.",
-        checked = settings.findLyricsOnline,
-        onCheckedChange = { value -> onChange { it.copy(findLyricsOnline = value) } },
     )
 }
 
