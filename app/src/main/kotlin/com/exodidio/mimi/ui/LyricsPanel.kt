@@ -85,7 +85,8 @@ fun LyricsPanel(
 ) {
     // The button over the words owns the choice, starting from the setting so a listener
     // who always wants the readings does not press it again for every song.
-    var showLatin by remember(lyrics) { mutableStateOf(LocalSettings.current.romanizeLyrics) }
+    val startInLatin = LocalSettings.current.romanizeLyrics
+    var showLatin by remember(lyrics) { mutableStateOf(startInLatin) }
     val romanised = rememberRomanised(lyrics, showLatin)
 
     Box(modifier = modifier.fillMaxSize()) {
