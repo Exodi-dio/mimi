@@ -31,11 +31,25 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
 
     private val library = (application as MimiApplication).library
 
     private val settings = (application as MimiApplication).settings
+
+    /**
+     * A list that has to be re-read when the separators change.
+     *
+     * Splitting names is a setting rather than a property of the tags, so the same cache
+     * has to be grouped again the moment it changes. Everything else about a detail
+     * screen, such as which artist was opened, stays as it was.
+     */
+    private fun <T> withSeparators(read: (List<String>) -> Flow<T>): Flow<T> =
+        settings.settings
+            .map { it.creditSeparators }
+            .distinctUntilChanged()
+            .flatMapLatest { separators -> read(separators) }
 
     init {
         // Which folders are left out is the one setting the scanner itself has to know
@@ -74,7 +88,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList(),
     )
 
-    val artists: StateFlow<List<ArtistSummary>> = combine(library.artists, settings.settings) { all, chosen ->
+    val artists: StateFlow<List<ArtistSummary>> = combine(
+        withSeparators(library::observeArtists),
+        settings.settings,
+    ) { all, chosen ->
         all.sortedWith(chosen.artistSort.comparator())
     }.stateIn(
         scope = viewModelScope,
@@ -85,11 +102,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     /** Detail screens ask for their own slice; the query is keyed by the screen's argument. */
     fun tracksForAlbum(albumId: Long): Flow<List<Track>> = library.tracksForAlbum(albumId)
 
-    fun tracksForArtist(artist: String): Flow<List<Track>> = library.tracksForArtist(artist)
+    fun tracksForArtist(artist: String): Flow<List<Track>> =
+        withSeparators { library.observeArtistTracks(artist, it) }
 
-    fun albumsForArtist(artist: String): Flow<List<AlbumSummary>> = library.albumsForArtist(artist)
+    fun albumsForArtist(artist: String): Flow<List<AlbumSummary>> =
+        withSeparators { library.observeArtistAlbums(artist, it) }
 
-    val genres: StateFlow<List<GenreSummary>> = library.genres.stateIn(
+    val genres: StateFlow<List<GenreSummary>> = withSeparators(library::observeGenres).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
@@ -113,7 +132,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList(),
     )
 
-    fun tracksInGenre(genre: String): Flow<List<Track>> = library.tracksInGenre(genre)
+    fun tracksInGenre(genre: String): Flow<List<Track>> =
+        withSeparators { library.observeGenreTracks(genre, it) }
 
     fun tracksByComposer(composer: String): Flow<List<Track>> = library.tracksByComposer(composer)
 
@@ -161,7 +181,6 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      * A blank query matches nothing rather than everything: an empty search box that
      * fills with the entire library reads as if the search is broken.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
     val searchResults: StateFlow<List<Track>> = _query
         .flatMapLatest { text ->
             if (text.isBlank()) flowOf(emptyList()) else library.search(text)

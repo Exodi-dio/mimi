@@ -9,8 +9,11 @@ package com.exodidio.mimi.library
  * visible on the device and comes back the moment it is allowed again.
  */
 
-/** Separates the stored paths. A folder name cannot contain a newline. */
-private const val FOLDER_SEPARATOR = "\n"
+/**
+ * Separates the values in a stored list. Shared with the credit separators, which are
+ * stored the same way, so one decoder reads both and neither format can drift.
+ */
+internal const val STORED_LIST_SEPARATOR = "\n"
 
 /** The single stored value holding every excluded folder, or empty. */
 fun encodeExcludedFolders(folders: Collection<String>): String =
@@ -18,12 +21,12 @@ fun encodeExcludedFolders(folders: Collection<String>): String =
         .filter { it.isNotEmpty() }
         .distinctBy { it.lowercase() }
         .sorted()
-        .joinToString(FOLDER_SEPARATOR)
+        .joinToString(STORED_LIST_SEPARATOR)
 
 /** The excluded folders held in [stored]. */
 fun decodeExcludedFolders(stored: String?): List<String> =
     stored.orEmpty()
-        .split(FOLDER_SEPARATOR)
+        .split(STORED_LIST_SEPARATOR)
         .map { it.trim() }
         .filter { it.isNotEmpty() }
         .distinctBy { it.lowercase() }

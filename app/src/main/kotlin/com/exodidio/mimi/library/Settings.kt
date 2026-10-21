@@ -88,6 +88,8 @@ data class Settings(
     val romanizeLyrics: Boolean = false,
     /** Folders whose songs are left out of the library entirely. */
     val excludedFolders: List<String> = emptyList(),
+    /** How a credit line is split into the people on it. */
+    val creditSeparators: List<String> = DEFAULT_CREDIT_SEPARATORS,
 ) {
     /** Every curve on offer: the ones that came with the app, then the listener's own. */
     val equalizerChoices: List<EqualizerProfile> get() = EqualizerPresets + equalizerProfiles
@@ -111,6 +113,18 @@ data class Settings(
         }
 
     companion object {
+        /**
+         * The separators a library starts with.
+         *
+         * A comma is deliberately absent. `Earth, Wind & Fire` is one band, and a comma
+         * default would file it as three artists, which is the sort of damage that makes
+         * a library look broken on the first launch. The list is editable precisely because
+         * no default can be right for every library: the conservative one ships, and the
+         * setting is the correction.
+         */
+        val DEFAULT_CREDIT_SEPARATORS: List<String> =
+            listOf(";", "/", "&", "feat.", "ft.", "featuring")
+
         /**
          * Every key is under one prefix so the settings can be read with a single query
          * that cannot be disturbed by anything else stored in the same table — the playback
@@ -138,6 +152,7 @@ data class Settings(
         private const val EQUALIZER_PROFILES = "setting.equalizer_profiles"
         private const val ROMANIZE_LYRICS = "setting.romanize_lyrics"
         private const val EXCLUDED_FOLDERS = "setting.excluded_folders"
+        private const val CREDIT_SEPARATORS = "setting.credit_separators"
 
         /**
          * Reads a set of stored rows into settings.
@@ -179,7 +194,10 @@ data class Settings(
                 equalizerGains = decodeCurve(stored[EQUALIZER_GAINS]) ?: defaults.equalizerGains,
                 equalizerProfiles = decodeProfiles(stored[EQUALIZER_PROFILES]),
                 romanizeLyrics = stored.boolean(ROMANIZE_LYRICS, defaults.romanizeLyrics),
-                excludedFolders = decodeExcludedFolders(stored[EXCLUDED_FOLDERS])
+                excludedFolders = decodeExcludedFolders(stored[EXCLUDED_FOLDERS]),
+                creditSeparators = stored[CREDIT_SEPARATORS]
+                    ?.let(::decodeExcludedFolders)
+                    ?: defaults.creditSeparators,
             )
         }
 
@@ -205,6 +223,7 @@ data class Settings(
             MetaEntry(EQUALIZER_PROFILES, encodeProfiles(settings.equalizerProfiles)),
             MetaEntry(ROMANIZE_LYRICS, if (settings.romanizeLyrics) "1" else "0"),
             MetaEntry(EXCLUDED_FOLDERS, encodeExcludedFolders(settings.excludedFolders)),
+            MetaEntry(CREDIT_SEPARATORS, encodeCreditSeparators(settings.creditSeparators)),
         )
 
         private fun Map<String, String>.boolean(key: String, default: Boolean): Boolean =

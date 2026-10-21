@@ -42,6 +42,7 @@ private enum class SettingsChoice {
     ARTIST_SORT,
     EQUALIZER_PRESET,
     EXCLUDED_FOLDERS,
+    CREDIT_SEPARATORS,
 }
 
 /**
@@ -98,6 +99,7 @@ fun SettingsScreen(
                     onChooseAlbumSort = { openChoice = SettingsChoice.ALBUM_SORT },
                     onChooseArtistSort = { openChoice = SettingsChoice.ARTIST_SORT },
                     onChooseFolders = { openChoice = SettingsChoice.EXCLUDED_FOLDERS },
+                    onChooseCreditSeparators = { openChoice = SettingsChoice.CREDIT_SEPARATORS },
                 )
 
                 SettingsTab.PLAYBACK -> PlaybackPage(
@@ -187,6 +189,15 @@ fun SettingsScreen(
             onDismiss = { openChoice = null },
         )
 
+        SettingsChoice.CREDIT_SEPARATORS -> CreditSeparatorsDialog(
+            separators = settings.creditSeparators,
+            onSave = { chosen ->
+                onChange { it.copy(creditSeparators = chosen) }
+                openChoice = null
+            },
+            onDismiss = { openChoice = null },
+        )
+
         null -> Unit
     }
 }
@@ -203,6 +214,7 @@ private fun LibraryPage(
     onChooseAlbumSort: () -> Unit,
     onChooseArtistSort: () -> Unit,
     onChooseFolders: () -> Unit,
+    onChooseCreditSeparators: () -> Unit,
 ) {
     SettingsSectionHeading("Finding music")
     SettingsToggleRow(
@@ -282,6 +294,14 @@ private fun LibraryPage(
             else -> "${settings.excludedFolders.size} folders are left out of the library."
         },
         onClick = onChooseFolders,
+    )
+
+    SettingsSectionHeading("Names")
+    SettingsActionRow(
+        title = "Split names at",
+        subtitle = settings.creditSeparators.joinToString(" ")
+            .ifEmpty { "Names are read exactly as they are tagged." },
+        onClick = onChooseCreditSeparators,
     )
 }
 

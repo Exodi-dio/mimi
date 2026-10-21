@@ -83,6 +83,83 @@ class LibraryRepository(
 
     fun tracksInGenre(genre: String): Flow<List<Track>> = trackDao.observeGenreTracks(genre)
 
+    /**
+     * The artists in the cache, with a track counted under every credit on it.
+     *
+     * The stored column holds the tag as written, so a duet is one row there. Splitting it
+     * into names is what stops `A & B feat. C` from becoming one artist called that, and
+     * it is done here rather than in SQL because the separators are a setting and the
+     * pattern would have to be built into the statement anyway.
+     *
+     * The work is a pass over rows already in memory, so changing the separators re-groups
+     * the list without asking MediaStore for anything.
+     */
+    fun observeArtists(separators: List<String>): Flow<List<ArtistSummary>> =
+        trackDao.observeAll().map { tracks ->
+            tracks.groupByCredit({ it.artist }, separators)
+                .map { (name, credited) ->
+                    ArtistSummary(
+                        artist = name,
+                        trackCount = credited.size,
+                        // Distinct albums, not credits: two songs from one record still
+                        // make one album on the artist's page.
+                        albumCount = credited.map { it.albumId }.distinct().size,
+                    )
+                }
+                .sortedBy { it.artist.lowercase() }
+        }
+
+    /** A track belongs to an artist when any of its credits names that artist. */
+    fun observeArtistTracks(artist: String, separators: List<String>): Flow<List<Track>> =
+        trackDao.observeAll().map { tracks ->
+            tracks.filter { it.artist.isCreditFor(artist, separators) }
+                .sortedForAlbumOrder()
+        }
+
+    /**
+     * The albums an artist appears on.
+     *
+     * Derived from the split credits as well, because an album shared with another artist
+     * belongs on both pages rather than only on the one whose name happened to be in the
+     * tag first.
+     */
+    fun observeArtistAlbums(artist: String, separators: List<String>): Flow<List<AlbumSummary>> =
+        observeArtistTracks(artist, separators).map { tracks ->
+            tracks.filter { !it.album.isNullOrBlank() }
+                .groupBy { it.albumId }
+                .map { (albumId, albumTracks) ->
+                    AlbumSummary(
+                        albumId = albumId,
+                        album = albumTracks.first().album.orEmpty(),
+                        artist = albumTracks.mapNotNull { it.artist }.minOrNull(),
+                        trackCount = albumTracks.size,
+                        artworkUri = albumTracks.map { it.contentUri }.minOrNull(),
+                    )
+                }
+                .sortedBy { it.album.lowercase() }
+        }
+
+    /** The genres in the cache, with a track counted under every genre it is filed under. */
+    fun observeGenres(separators: List<String>): Flow<List<GenreSummary>> =
+        trackDao.observeAll().map { tracks ->
+            tracks.groupByCredit({ it.genre }, separators)
+                .map { (name, filed) ->
+                    GenreSummary(
+                        genre = name,
+                        trackCount = filed.size,
+                        artworkUri = filed.map { it.contentUri }.minOrNull(),
+                    )
+                }
+                .sortedBy { it.genre.lowercase() }
+        }
+
+    /** A track is filed under a genre when any of its genres names it. */
+    fun observeGenreTracks(genre: String, separators: List<String>): Flow<List<Track>> =
+        trackDao.observeAll().map { tracks ->
+            tracks.filter { it.genre.isCreditFor(genre, separators) }
+                .sortedForGenreOrder()
+        }
+
     fun tracksByComposer(composer: String): Flow<List<Track>> = trackDao.observeComposerTracks(composer)
 
     fun tracksInYear(year: Int): Flow<List<Track>> = trackDao.observeYearTracks(year)
@@ -274,3 +351,48 @@ class LibraryRepository(
         const val KEY_REPEAT = "playback_repeat"
     }
 }
+
+/**
+ * Groups tracks under each of the credits [selector] names, keeping first-seen order.
+ *
+ * Case is folded for the key so a library that is inconsistent about capitalisation does
+ * not grow two artist rows, while the spelling shown is the first one encountered. Each
+ * track is deduplicated within itself by [splitCredits], so a tag naming the same artist
+ * twice still counts once.
+ */
+private fun List<Track>.groupByCredit(
+    selector: (Track) -> String?,
+    separators: List<String>,
+): List<Pair<String, List<Track>>> {
+    val spellings = LinkedHashMap<String, String>()
+    val groups = HashMap<String, MutableList<Track>>()
+
+    forEach { track ->
+        splitCredits(selector(track), separators).forEach { credit ->
+            val key = credit.lowercase()
+            spellings.getOrPut(key) { credit }
+            groups.getOrPut(key) { mutableListOf() }.add(track)
+        }
+    }
+
+    return spellings.map { (key, spelling) -> spelling to groups.getValue(key).toList() }
+}
+
+/** Whether [name] is one of the credits on a value, ignoring case and stray spacing. */
+private fun String?.isCreditFor(name: String, separators: List<String>): Boolean =
+    splitCredits(this, separators).any { it.equals(name.trim(), ignoreCase = true) }
+
+/** Album running order, which is what an artist page wants inside each record. */
+private fun List<Track>.sortedForAlbumOrder(): List<Track> = sortedWith(
+    compareBy<Track> { it.album.orEmpty().lowercase() }
+        .thenBy { it.trackNumber }
+        .thenBy { it.title.lowercase() }
+)
+
+/** Artist, then album, then running order: the shape the genre screen has always had. */
+private fun List<Track>.sortedForGenreOrder(): List<Track> = sortedWith(
+    compareBy<Track> { it.artist.orEmpty().lowercase() }
+        .thenBy { it.album.orEmpty().lowercase() }
+        .thenBy { it.trackNumber }
+        .thenBy { it.title.lowercase() }
+)

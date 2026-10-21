@@ -36,6 +36,7 @@ import com.composables.icons.lucide.Settings
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.ThemeMode
 import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.library.splitCredits
 import com.exodidio.mimi.ui.theme.MimiTheme
 
 /**
@@ -209,10 +210,14 @@ private fun MimiAppContent() {
                         }
                     },
                     onGoToArtist = {
-                        val artist = tracks
+                        // A tag can credit several people, and a screen opens on one of
+                        // them: the first name is the one the track is billed under.
+                        val credit = tracks
                             .firstOrNull { it.contentUri == playback.current?.mediaId }
                             ?.artist
-                        artist?.let { closePlayerTo(Screen.ArtistDetail(it), LibrarySection.ARTISTS) }
+                        splitCredits(credit, settings.creditSeparators)
+                            .firstOrNull()
+                            ?.let { closePlayerTo(Screen.ArtistDetail(it), LibrarySection.ARTISTS) }
                     },
                 )
             } else {
@@ -464,9 +469,13 @@ private fun MimiAppContent() {
                                         }
                                     },
                                     onGoToArtist = {
-                                        track?.artist?.let { artist ->
-                                            navigator.pop()
-                                            navigator.push(Screen.ArtistDetail(artist))
+                                        track?.let {
+                                            splitCredits(it.artist, settings.creditSeparators)
+                                                .firstOrNull()
+                                                ?.let { artist ->
+                                                    navigator.pop()
+                                                    navigator.push(Screen.ArtistDetail(artist))
+                                                }
                                         }
                                     },
                                 )
