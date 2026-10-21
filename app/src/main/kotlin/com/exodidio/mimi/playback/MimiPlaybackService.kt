@@ -365,9 +365,20 @@ class MimiPlaybackService : MediaSessionService() {
 
     /**
      * The level the music plays at before the ramp of a crossfade is applied.
+     *
+     * The trim of the bass boost is taken off here, which is where a preamp belongs: the
+     * player's volume sits in front of the effects, so the boost has less to work with
+     * and the chain cannot be pushed into clipping.
      */
     private fun baseVolume(scale: Float): Float =
-        (fadeVolume * focusVolume * gapVolume * scale).coerceIn(0f, 1f)
+        (fadeVolume * focusVolume * gapVolume * scale * bassTrim()).coerceIn(0f, 1f)
+
+    /**
+     * The level the bass boost leaves behind, as a fraction of the level it started with.
+     *
+     * One when the boost is off, so nothing is taken off in that case.
+     */
+    private fun bassTrim(): Float = bassBoostTrimScale(currentSettings.bassBoostStrength)
 
     /**
      * The ReplayGain level of a track, when its tags have been read.
@@ -382,7 +393,7 @@ class MimiPlaybackService : MediaSessionService() {
      * level is only changed once they are in. The track coming up is read as well,
      * because a crossfade needs its level before the overlap begins.
      */
-    private fun refreshReplayGain(player: ExoPlayer) {
+    private fun refreshReplayGain(player: Player) {
         val mode = ReplayGainMode.fromSetting(currentSettings.replayGainMode)
         if (mode == ReplayGainMode.NONE) {
             replayGainVolume = 1f
@@ -419,7 +430,7 @@ class MimiPlaybackService : MediaSessionService() {
     /**
      * The level of the track playing and of the one coming up, from what is known.
      */
-    private fun applyReplayGainLevels(player: ExoPlayer) {
+    private fun applyReplayGainLevels(player: Player) {
         replayGainVolume = replayGainScaleOf(player.currentMediaItem?.localConfiguration?.uri?.toString())
         incomingReplayGainVolume = replayGainScaleOf(
             crossfadePlayer?.currentMediaItem?.localConfiguration?.uri?.toString(),
@@ -495,7 +506,7 @@ class MimiPlaybackService : MediaSessionService() {
      * player plays one item at a time, and the session's player is the one the
      * notification and the lock screen follow.
      */
-    private fun startCrossfade(player: ExoPlayer, index: Int, length: Int) {
+    private fun startCrossfade(player: Player, index: Int, length: Int) {
         val item = player.getMediaItemAt(index + 1)
         val incoming = crossfadePlayer ?: buildCrossfadePlayer().also { crossfadePlayer = it }
 
@@ -527,7 +538,7 @@ class MimiPlaybackService : MediaSessionService() {
      * the music does not start again from the top, and it is brought back up over a
      * moment so that the handover is not a click.
      */
-    private suspend fun handOver(player: ExoPlayer, index: Int, incoming: ExoPlayer) {
+    private suspend fun handOver(player: Player, index: Int, incoming: ExoPlayer) {
         val position = incoming.currentPosition
         incoming.pause()
         crossfadeOutgoing = 0f

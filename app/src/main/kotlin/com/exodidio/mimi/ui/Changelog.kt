@@ -23,6 +23,12 @@ val changelogSections: List<ChangelogSection> = listOf(
     ChangelogSection(
         label = "New",
         entries = listOf(
+            "ReplayGain is read from the file's own tags, by track or by album, with a " +
+                "preamp of your own.",
+            "Tracks can be crossfaded, so the end of one fades down under the start of the next.",
+            "A bass boost with a subsonic filter and a trim, so the weight cannot clip the " +
+                "rest of the mix.",
+            "Gapless playback can be turned off, which leaves a short silence between the tracks.",
             "Song details show when a file was added to the device and when it was last changed.",
             "Song details show how many channels a file has, read from the file itself.",
             "Search offers near matches when a query finds nothing.",

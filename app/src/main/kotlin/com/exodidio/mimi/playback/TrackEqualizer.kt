@@ -20,11 +20,12 @@ import com.exodidio.mimi.library.gainAtFrequency
  * band is therefore set to the curve read at that band's real frequency, so a ten-point
  * curve comes out the same shape on a device that only offers five.
  *
- * The bass boost is not left to do as it likes. It is confined to the bottom of the
- * range, so it adds weight without dragging the middle of the mix along with it, and the
- * level is trimmed by as much as the boost adds, so the chain cannot be pushed into
- * clipping. The trim is a preamp on the equaliser, which means the equaliser's effect is
- * created even when the curve itself is switched off; the curve stays flat in that case.
+ * The bass boost is not left to do as it likes. The platform's boost already works on the
+ * bottom of the range, and a subsonic filter is written alongside it to keep the rumble
+ * out, so the weight does not drag the whole mix down with it. The level is trimmed by
+ * as much as the boost adds, which is the owner's business rather than the effect's:
+ * the player's volume sits in front of these effects, so taking the trim off there is
+ * what keeps the chain from being pushed into clipping.
  *
  * Opt-in by design. The effects cost a little power and, on a bad implementation, a
  * little fidelity, so nothing is created until the listener asks for it.
@@ -65,7 +66,7 @@ class TrackEqualizer {
             val state = EffectState(sessionId, enabled, curve.gainsDb, bassBoost)
             if (applied == state) return
 
-            val (shaper, booser) = bind(sessionId)
+            val (shaper, booster) = bind(sessionId, wantsBoost)
             if (shaper != null) {
                 shaper.enabled = true
                 applyCurve(shaper, curve, enabled, bassBoost)
@@ -85,23 +86,32 @@ class TrackEqualizer {
      * The effects bound to the session, made afresh when the session changes.
      *
      * An effect belongs to one audio session, so a session that has changed means the
-     * old effects are of no use to anybody.
+     * old effects are of no use to anybody. The boost is only made while it is asked
+     * for, and is let go of when it is not, so a phone that is not using it is not
+     * paying for it.
      */
-    private fun bind(sessionId: Int): Pair<Equalizer?, BassBoost?> {
-        if (attachedSession == sessionId) return equalizer to bass
+    private fun bind(sessionId: Int, wantsBoost: Boolean): Pair<Equalizer?, BassBoost?> {
+        if (attachedSession != sessionId) {
+            release()
+            attachedSession = sessionId
+            equalizer = runCatching { Equalizer(0, sessionId) }.getOrNull()
+            bass = null
+        }
 
-        release()
-        attachedSession = sessionId
-        equalizer = runCatching { Equalizer(0, sessionId) }.getOrNull()
-        bass = runCatching { BassBoost(0, sessionId) }.getOrNull()
+        if (wantsBoost) {
+            if (bass == null) bass = runCatching { BassBoost(0, sessionId) }.getOrNull()
+        } else if (bass != null) {
+            runCatching { bass?.release() }
+            bass = null
+        }
         return equalizer to bass
     }
 
     /**
-     * The curve, the subsonic filter and the trim, written onto the bands.
+     * The curve and the subsonic filter, written onto the bands.
      *
-     * The curve is only written when the equaliser is switched on; the filter and the
-     * trim belong to the bass boost and are written whenever the boost is asked for.
+     * The curve is only written when the equaliser is switched on; the filter belongs to
+     * the bass boost and is written whenever the boost is asked for.
      */
     private fun applyCurve(
         effect: Equalizer,
@@ -124,31 +134,20 @@ class TrackEqualizer {
             val millibels = (decibels * 100f).toInt().coerceIn(lowest, highest)
             effect.setBandLevel(band.toShort(), millibels.toShort())
         }
-
-        // The preamp is the trim. It is taken off before the boost, so the boost has
-        // something to work with and the chain does not run into the top of the range.
-        val preamp = effect.preampRange
-        val trimDb = if (bassBoost > 0) bassBoostTrimDb(bassBoost) else 0f
-        val millibels = (trimDb * 100f).toInt()
-            .coerceIn(preamp[0].toInt(), preamp[1].toInt())
-        effect.setPreampGain(millis.toShort())
     }
 
     /**
-     * The boost itself, confined to the bottom of the range.
+     * The boost itself.
      *
-     * The range is set before the strength, so the effect never runs with the strength of
-     * a range it is no longer in.
+     * The platform's boost works on the bottom of the range on its own, so all that is
+     * left to say is how hard it is pushed. The trim that keeps it from clipping is not
+     * part of the effect: it is taken off the player's volume, which sits in front of
+     * the effects, and is the owner's business.
      */
     private fun applyBassBoost(effect: BassBoost, strengthPercent: Int) {
-        val range = effect.strengthRange
-        val lowest = if (range.size > 0) range[0] else 0
-        val highest = if (range.size > 1) range[1] else 1000
-        val millis = (highest * (strengthPercent.coerceIn(0, 100) / 100f)).toInt()
-            .coerceIn(lowest, highest)
-
-        runCatching { effect.setRange(BASS_BOOST_LOW_HZ * 1000, BASS_BOOST_HIGH_HZ * 1000) }
-        effect.setStrength(millis.toShort())
+        val millis = (MAX_STRENGTH * (strengthPercent.coerceIn(0, 100) / 100f)).toInt()
+            .coerceIn(0, MAX_STRENGTH)
+        runCatching { effect.setStrength(millis.toShort()) }
         effect.enabled = true
     }
 
@@ -160,6 +159,15 @@ class TrackEqualizer {
         bass = null
         attachedSession = 0
         applied = null
+    }
+
+    private companion object {
+        /**
+         * The strongest the platform's boost goes.
+         *
+         * The effect counts its strength in thousandths, so this is a hundred per cent.
+         */
+        const val MAX_STRENGTH = 1000
     }
 }
 

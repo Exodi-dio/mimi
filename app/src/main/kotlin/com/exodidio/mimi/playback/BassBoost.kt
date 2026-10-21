@@ -3,23 +3,6 @@ package com.exodidio.mimi.playback
 import kotlin.math.pow
 
 /**
- * The lowest frequency the bass boost reaches.
- *
- * The boost is kept to the bottom of the range on purpose. A boost that reaches into the
- * middle of the spectrum does not only add weight, it moves the whole mix with it, and
- * the result stops being the song that was recorded.
- */
-const val BASS_BOOST_LOW_HZ = 20
-
-/**
- * The highest frequency the bass boost reaches.
- *
- * Two hundred hertz is where the bottom of the range hands over to the low middle, and
- * stopping there keeps the weight in the bass rather than in the guitars and the voice.
- */
-const val BASS_BOOST_HIGH_HZ = 200
-
-/**
  * The corner of the filter that keeps the rumble out.
  *
  * Below this the sound is felt rather than heard, and on a phone speaker it is heard as
@@ -64,9 +47,10 @@ fun bassBoostTrimDb(strengthPercent: Int): Float =
 /**
  * The level the trim leaves behind, as a fraction of the level it started with.
  *
- * The trim is given to the equaliser as a preamp, which is a number of decibels, but the
- * question worth asking is what the music ends up playing at. The answer is never more
- * than what it was, and it falls as the boost rises.
+ * The trim is taken off the player's volume, which sits in front of the effects, so the
+ * boost has less to work with and the chain cannot be pushed into clipping. The question
+ * worth asking is what the music ends up playing at. The answer is never more than what
+ * it was, and it falls as the boost rises.
  *
  * Pure, so the curve can be checked without a device playing anything.
  */
