@@ -131,6 +131,7 @@ fun suggestTerms(
         )
         .take(limit)
         .map { it.first }
+        .toList()
 }
 
 /**
