@@ -3,7 +3,6 @@ package com.exodidio.mimi.ui.theme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.darken
 import androidx.compose.ui.graphics.luminance
 
 /**
@@ -122,7 +121,7 @@ fun onColourFor(background: Color): Color =
  * by construction rather than by being picked to match.
  */
 fun highlightFor(accent: Color, background: Color): Color {
-    val towardsBackground = if (background.luminance() > 0.5f) accent.lighten(0.45f) else accent.darken(0.35f)
+    val towardsBackground = if (background.luminance() > 0.5f) accent.lightened(0.45f) else accent.darkened(0.35f)
     return towardsBackground
 }
 
@@ -154,4 +153,26 @@ fun lightSchemeFor(accent: Accent): androidx.compose.material3.ColorScheme = lig
     onBackground = Color(0xFF1E1B20),
     surface = Color(0xFFFDF6E7),
     onSurface = Color(0xFF1E1B20),
+)
+
+/**
+ * A colour pulled towards white, by [fraction] of the way it has left to go.
+ *
+ * Written here rather than taken from a library because the versions that ship with
+ * Compose are not part of its public surface, and a colour scheme that will not compile
+ * is not a colour scheme.
+ */
+private fun Color.lightened(fraction: Float): Color = Color(
+    red = red + (1f - red) * fraction,
+    green = green + (1f - green) * fraction,
+    blue = blue + (1f - blue) * fraction,
+    alpha = alpha,
+)
+
+/** A colour pulled towards black, by [fraction] of the way there. */
+private fun Color.darkened(fraction: Float): Color = Color(
+    red = red * (1f - fraction),
+    green = green * (1f - fraction),
+    blue = blue * (1f - fraction),
+    alpha = alpha,
 )
