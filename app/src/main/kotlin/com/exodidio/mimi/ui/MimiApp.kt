@@ -50,6 +50,7 @@ import com.exodidio.mimi.library.Track
 import com.exodidio.mimi.library.addedWithin
 import com.exodidio.mimi.library.addingHiddenName
 import com.exodidio.mimi.library.bottomTabsIn
+import com.exodidio.mimi.library.differencesFrom
 import com.exodidio.mimi.library.playedWithin
 import com.exodidio.mimi.library.readBackMatches
 import com.exodidio.mimi.library.splitCredits
@@ -1047,8 +1048,8 @@ private fun MimiAppContent(openPlayer: Boolean) {
                                     artist = first.artist.orEmpty(),
                                     album = first.album.orEmpty(),
                                     albumArtist = first.albumArtist.orEmpty(),
-                                    year = first.year?.toString().orEmpty(),
-                                    trackNumber = "",
+                                    year = first.year,
+                                    trackNumber = null,
                                     genre = "",
                                 ),
                                 fields = listOf(

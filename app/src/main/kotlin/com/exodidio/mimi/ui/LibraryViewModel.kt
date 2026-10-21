@@ -68,6 +68,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val settings = (application as MimiApplication).settings
 
     /**
+     * The application itself, for the files this app reads and writes outside itself.
+     *
+     * The constructor's own copy is only in scope while the class is being set up, so a
+     * method that needs the application later asks for it here instead.
+     */
+    private val app: Application = application
+
+    /**
      * A list that has to be re-read when the artist separators change.
      *
      * Splitting names is a setting rather than a property of the tags, so the same cache
@@ -396,7 +404,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      */
     fun importPlaylist(uri: Uri, onDone: (String) -> Unit) {
         viewModelScope.launch {
-            val text = readDocumentText(application, uri)
+            val text = readDocumentText(app, uri)
             if (text == null) {
                 onDone("That file could not be read.")
                 return@launch
@@ -408,7 +416,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
 
-            val name = documentDisplayName(application, uri)
+            val name = documentDisplayName(app, uri)
                 ?.substringBeforeLast('.')
                 ?.takeIf { it.isNotBlank() }
                 ?: "Imported playlist"
@@ -451,7 +459,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             }
 
             val fileName = "${safeFileName(name)}.m3u"
-            val written = writeDocumentInTree(application, folder, fileName, buildM3u(songs))
+            val written = writeDocumentInTree(app, folder, fileName, buildM3u(songs))
             onDone(
                 if (written != null) {
                     "Exported ${songs.size} songs to $fileName."
@@ -471,7 +479,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun createBackup(uri: Uri, onDone: (String) -> Unit) {
         viewModelScope.launch {
             val text = buildBackup(library.buildBackupData(System.currentTimeMillis()))
-            val written = writeDocumentText(application, uri, text)
+            val written = writeDocumentText(app, uri, text)
             onDone(
                 if (written) {
                     "Backup saved."
@@ -490,7 +498,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      */
     fun restoreBackup(uri: Uri, onDone: (RestoreOutcome) -> Unit) {
         viewModelScope.launch {
-            val text = readDocumentText(application, uri)
+            val text = readDocumentText(app, uri)
             if (text == null) {
                 onDone(RestoreOutcome.Refused("That file could not be read."))
                 return@launch
@@ -525,11 +533,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         if (folder.isBlank()) return
 
         val now = System.currentTimeMillis()
-        if (now - library.lastBackupAt() < backupIntervalMillis(chosen.backupFrequency)) return
-
         viewModelScope.launch {
+            if (now - library.lastBackupAt() < backupIntervalMillis(chosen.backupFrequency)) {
+                return@launch
+            }
             val text = buildBackup(library.buildBackupData(now))
-            val written = writeDocumentInTree(application, folder, backupFileName(now), text)
+            val written = writeDocumentInTree(app, folder, backupFileName(now), text)
             if (written != null) library.noteBackupWritten(now)
         }
     }

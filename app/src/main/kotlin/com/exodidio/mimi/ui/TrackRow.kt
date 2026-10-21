@@ -44,6 +44,7 @@ import com.composables.icons.lucide.ListEnd
 import com.composables.icons.lucide.ListPlus
 import com.composables.icons.lucide.ListStart
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Trash2
 import com.exodidio.mimi.library.Track
 
