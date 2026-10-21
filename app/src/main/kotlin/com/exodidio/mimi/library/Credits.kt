@@ -56,5 +56,20 @@ fun encodeCreditSeparators(separators: Collection<String>): String =
         .distinctBy { it.lowercase() }
         .joinToString(STORED_LIST_SEPARATOR)
 
+/**
+ * [separators] with [value] added, or the same list when adding it would change nothing.
+ *
+ * The editor adds one separator at a time rather than parsing a line, which is what makes a
+ * lone comma possible: a comma-delimited field cannot hold the comma itself. Only the ends
+ * are trimmed, so a multi-word separator keeps the space between its words, and a value
+ * already present in another case is dropped rather than stored twice.
+ */
+fun addCreditSeparator(separators: List<String>, value: String): List<String> {
+    val cleaned = value.trim()
+    if (cleaned.isEmpty()) return separators
+    if (separators.any { it.equals(cleaned, ignoreCase = true) }) return separators
+    return separators + cleaned
+}
+
 /** Trimmed with runs of whitespace folded to one space, which is how a name is shown. */
 private fun String.collapseWhitespace(): String = trim().replace(WHITESPACE, " ")

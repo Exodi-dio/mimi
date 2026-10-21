@@ -10,11 +10,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -22,9 +25,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.X
 
 /**
  * The pieces the settings pages are built from.
@@ -35,15 +43,57 @@ import com.composables.icons.lucide.Lucide
  * whole row rather than a control a thumb has to find.
  */
 
+/**
+ * A section heading on a settings page.
+ *
+ * Small and letterspaced so it reads as a label over the rows rather than as another row,
+ * and muted so the rows keep the eye. The space above is generous and the space below is
+ * tight, which is what makes a heading belong to what follows it instead of floating
+ * between two blocks.
+ */
 @Composable
 fun SettingsSectionHeading(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp),
+        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.2.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 4.dp),
     )
 }
+
+/**
+ * Finding a setting by typing what it is about.
+ *
+ * A field rather than a menu of pages because the listener knows the word, not the page it
+ * was filed under. The clear button appears only with text in the field so an empty field
+ * stays quiet.
+ */
+@Composable
+fun SettingsSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        singleLine = true,
+        placeholder = { Text("Search settings") },
+        leadingIcon = { Icon(Lucide.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Lucide.X, contentDescription = "Clear search")
+                }
+            }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp),
+    )
+}
+
 
 @Composable
 fun SettingsToggleRow(
@@ -151,6 +201,8 @@ private fun SettingsRowFrame(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -202,18 +254,18 @@ fun ChoiceDialog(
     )
 }
 
-/** A short note at the foot of a settings page. */
+/** A short note under a row, for the consequence that does not fit in its subtitle. */
 @Composable
 fun SettingsNote(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
+        modifier = modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp),
     )
 }
 
-/** Spacing that keeps the last row of a page clear of the tab bar. */
+/** Spacing that keeps the last row of a scrolling page clear of the bar below it. */
 @Composable
 fun SettingsPageFooter() {
     Spacer(modifier = Modifier.height(24.dp))
