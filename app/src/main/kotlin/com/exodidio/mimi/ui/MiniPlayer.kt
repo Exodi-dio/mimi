@@ -31,10 +31,17 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Pause
 import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.SkipBack
 import com.composables.icons.lucide.SkipForward
 import com.exodidio.mimi.playback.PlaybackState
 
-/** The strip that sits above the library once something is loaded. Tapping expands. */
+/**
+ * The strip that sits above the library once something is loaded. Tapping expands.
+ *
+ * [extraControls] adds the previous button the Now playing setting asks for. It is a
+ * layout choice rather than a second player: the strip still has one row and one progress
+ * line, so a small screen does not lose the song's name to three buttons.
+ */
 @Composable
 fun MiniPlayer(
     state: PlaybackState,
@@ -42,6 +49,8 @@ fun MiniPlayer(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
+    extraControls: Boolean = false,
+    onPrevious: () -> Unit = {},
 ) {
     val current = state.current ?: return
     val artwork = rememberAlbumArt(current.mediaId, targetPx = 128)
@@ -119,6 +128,11 @@ fun MiniPlayer(
                     )
                 }
 
+                if (extraControls) {
+                    IconButton(onClick = onPrevious) {
+                        Icon(Lucide.SkipBack, contentDescription = "Previous")
+                    }
+                }
                 IconButton(onClick = onPlayPause) {
                     Icon(
                         imageVector = if (state.isPlaying) Lucide.Pause else Lucide.Play,

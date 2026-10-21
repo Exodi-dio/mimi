@@ -90,7 +90,8 @@ class NavigationViewModel : ViewModel() {
     fun openFromDrawer(screen: Screen) {
         val settingsOpen = current is Screen.SettingsGroup ||
             current is Screen.SettingsSearch ||
-            current is Screen.Profile
+            current is Screen.SettingsHome ||
+            current is Screen.ManageList
         stack = if (settingsOpen && stack.size > 1) {
             stack.dropLast(1) + screen
         } else {

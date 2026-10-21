@@ -56,10 +56,12 @@ private const val PREVIEW_CREDIT = "Earth, Wind & Fire feat. Someone"
  * comma is the mark with the most visible consequence in a library, and this is the place
  * that consequence is chosen deliberately.
  *
- * Edits are staged and written only on Save, so a half-built list never regroups the
- * library and dismissing the dialog leaves the setting exactly as it was. The preview is
- * split with the same function the library uses, so it cannot promise a result the library
- * will not produce.
+ * The same dialog serves artists and genres: the title, the sentence and the preview are
+ * arguments because the two lists mean different things even though they are stored the
+ * same way. Edits are staged and written only on Save, so a half-built list never regroups
+ * the library and dismissing the dialog leaves the setting exactly as it was. The preview
+ * is split with the same function the library uses, so it cannot promise a result the
+ * library will not produce.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -67,6 +69,9 @@ fun CreditSeparatorsDialog(
     separators: List<String>,
     onSave: (List<String>) -> Unit,
     onDismiss: () -> Unit,
+    title: String = "Split names at",
+    description: String = "Marks and words that separate one artist or genre from the next.",
+    preview: String = PREVIEW_CREDIT,
 ) {
     var chosen by remember(separators) { mutableStateOf(separators) }
     var draft by remember { mutableStateOf("") }
@@ -78,11 +83,11 @@ fun CreditSeparatorsDialog(
 
     val suggestions = SUGGESTED_CREDIT_SEPARATORS
         .filterNot { suggestion -> chosen.any { it.equals(suggestion, ignoreCase = true) } }
-    val names = splitCredits(PREVIEW_CREDIT, chosen)
+    val names = splitCredits(preview, chosen)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Split names at") },
+        title = { Text(title) },
         text = {
             Column(
                 modifier = Modifier
@@ -90,7 +95,7 @@ fun CreditSeparatorsDialog(
                     .verticalScroll(rememberScrollState()),
             ) {
                 Text(
-                    text = "Marks and words that separate one artist or genre from the next.",
+                    text = description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -184,7 +189,7 @@ fun CreditSeparatorsDialog(
                     modifier = Modifier.padding(top = 16.dp),
                 )
                 Text(
-                    text = PREVIEW_CREDIT,
+                    text = preview,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
@@ -195,7 +200,8 @@ fun CreditSeparatorsDialog(
                     modifier = Modifier.padding(top = 2.dp),
                 )
                 Text(
-                    text = "Adding a comma splits Earth, Wind & Fire into three artists.",
+                    text = "A mark that appears inside a real name splits that name too, so " +
+                        "add one deliberately.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 12.dp),

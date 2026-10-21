@@ -19,10 +19,10 @@ and it is not meant to be.
 | --- | --- |
 | Library scan, cached so it never rescans on open | Theming / Apple Music visuals |
 | Eight library sections: songs, albums, artists, playlists, genres, composers, years, folders | Last.fm scrobbling |
-| Albums and artists told apart by their own tags, so a compilation does not credit every guest | Crossfade and gapless |
+| Albums and artists told apart by their own tags, so a compilation does not credit every guest | Crossfade, ReplayGain, a second playback engine, and turning gapless off |
 | Playlists: make, rename, delete, add, remove and reorder songs | Branding / app icon |
 | Songs sorted by title, artist, album, length, date added or file name, ties broken predictably | R8 shrinking |
-| Albums sorted by name, album artist or song count; artists by name, albums or song count | |
+| Albums sorted by name, album artist or song count; artists by name, albums or song count | Backup files, and choosing a playlist export folder |
 | Every list header counts its songs and running time, with sort and in-list search beside it | |
 | Loved songs, with a shelf of their own on the home screen | |
 | Search across titles, artists and albums, with recent searches offered back | |
@@ -37,24 +37,31 @@ and it is not meant to be.
 | Lyrics looked up for a song whose file has none, from the menu on the now playing screen, one song at a time and only when asked | |
 | Found lyrics kept beside the app for that song, with a preview before one is chosen | |
 | Transliterated lyrics, switched by a button over the words, working with no connection | |
-| One credit line split into the artists and genres actually on it, with the separators editable | |
+| One credit line split into the artists and genres actually on it, with each list of separators editable | |
 | Background playback, notification, lock screen | |
 | Mini player with a progress rule, and a Now Playing screen with artwork, lyrics and queue faces | |
+| Extra previous/next buttons in the mini player, switched from Now playing settings | |
 | Resume last track, position, shuffle and repeat | |
+| Keep shuffle mode across a new list, or start every list unshuffled | |
+| Lower the music for a notification instead of stopping, or pause instead | |
+| Start playing when a wired or bluetooth headset connects | |
 | Cover art from the files, falling back to the device's album art index | |
 | Listening history: play and skip counts, time heard per day, recently played, most played | |
 | Statistics: what the library holds and how much of it has been played | |
-| Insights: counts, formats and growth for the library, and listening charts, genres, artists and top songs over 7 days, 30 days or all time, switchable in Tools | |
+| Insights: counts, formats and growth for the library, and listening charts, genres, artists and top songs over 7 days, 30 days or all time, switchable from About | |
+| Last added and Recently played lists, sliced by a period chosen on the Playlists settings page | |
 | Everything known about a song on one screen, and sharing its file | |
 | Pick several songs at once and love them, queue them or put them in a playlist | |
-| Folders left out of the library without deleting anything | |
+| A duration range that hides short or long files from the scan and the cached library | |
+| Blacklisted folders left out of the library without deleting anything | |
 | Artists and albums hidden from every list, search and count without deleting anything | |
 | A duplicate finder that groups copies by title, artist and length, and only reports them | |
 | Each library section remembers where it was scrolled to, and starts afresh when the order changes | |
 | Swiping between artwork, lyrics and queue, and a full-screen cover on tap | |
-| A profile at the top of the drawer: a name, a picture and a banner, kept on the device with no account | |
-| Settings in a navigation drawer, split across Library, Playback, Appearance, Tools and About pages | |
-| Settings search that opens the page a setting lives on and points out the row | |
+| A profile at the top right of the home screen: a name, a picture and a banner, kept on the device with no account | |
+| A drawer of nine destinations, with counts on Library and Folders and nothing profile-shaped in it | |
+| Settings behind one drawer row: an index, eight pages, and a search that opens the page with the row in view | |
+| Bottom tabs and home shelves reordered and hidden from the Customization page | |
 
 ## Stack
 

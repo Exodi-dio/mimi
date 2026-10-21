@@ -325,9 +325,8 @@ class LibraryRepository(
      *
      * The ids already cached are read before the rebuild so the result can say how many
      * rows went away. A row can disappear because the file did, but also because it moved
-     * into an excluded folder or below the shortest-song bound; from the cache's side
-     * those are the same thing, and the count is what makes the rebuild visible instead of
-     * silent.
+     * into an excluded folder or outside the length range; from the cache's side those are
+     * the same thing, and the count is what makes the rebuild visible instead of silent.
      *
      * @param force ignore the freshness window and scan regardless.
      */
@@ -341,7 +340,8 @@ class LibraryRepository(
         val chosen = Settings.from(metaDao.getAllWithPrefix(Settings.PREFIX))
         val scanned = MediaStoreScanner.scan(
             context = context,
-            minDurationMs = chosen.minSongLength.millis,
+            minDurationMs = chosen.minDurationMs,
+            maxDurationMs = chosen.maxDurationMs,
             excludedFolders = chosen.excludedFolders,
         )
         val foundIds = scanned.mapTo(HashSet()) { it.id }

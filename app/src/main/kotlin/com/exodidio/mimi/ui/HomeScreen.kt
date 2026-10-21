@@ -1,7 +1,9 @@
 package com.exodidio.mimi.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,38 +13,39 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.Box
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Shuffle
+import com.exodidio.mimi.library.HomeRowId
 import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.library.homeRowsIn
 
 /**
  * What the app opens on.
  *
  * A library is a place you browse when you know what you want; this is for when you do
  * not. It answers the questions in the order they are usually asked — what is new, what
- * was I just listening to, what do I actually like, and what have I marked myself — and
- * offers to just start playing.
+ * was I just listening to, what do I actually like, and what have I marked myself.
  *
- * A section with nothing in it is left out rather than shown empty. On a fresh library
- * that means the only thing on screen is "Shuffle all", which is honest: there is a
- * library, and there is nothing to say about how it has been used yet.
+ * The menu and the profile sit on the same line as the title, because both are about the
+ * app rather than about the music: the menu opens navigation, and the face opens the page
+ * where the name and pictures are changed. Keeping the profile here rather than in the
+ * bottom bar is what gave the navigation its four real destinations back.
+ *
+ * The shelves are drawn in [homeRowsIn] order and only when they hold something, so hiding
+ * one, moving one, or having nothing to put in it all leave a screen that still reads.
  */
 @Composable
 fun HomeScreen(
@@ -51,19 +54,33 @@ fun HomeScreen(
     mostPlayed: List<Track>,
     loved: List<Track>,
     onTrackClick: (List<Track>, Int) -> Unit,
-    onShuffleAll: () -> Unit,
+    onOpenMenu: () -> Unit,
+    onOpenProfile: () -> Unit,
+    avatar: ImageBitmap?,
+    profileName: String,
     modifier: Modifier = Modifier,
     hasLibrary: Boolean = true,
 ) {
-    val sections = listOfNotNull(
-        recentlyAdded.takeIf { it.isNotEmpty() }?.let { "Recently added" to it },
-        recentlyPlayed.takeIf { it.isNotEmpty() }?.let { "Recently played" to it },
-        mostPlayed.takeIf { it.isNotEmpty() }?.let { "Most played" to it },
-        loved.takeIf { it.isNotEmpty() }?.let { "Loved" to it },
+    val settings = LocalSettings.current
+    val byRow = mapOf(
+        HomeRowId.RECENTLY_ADDED to recentlyAdded,
+        HomeRowId.RECENTLY_PLAYED to recentlyPlayed,
+        HomeRowId.MOST_PLAYED to mostPlayed,
+        HomeRowId.LOVED to loved,
     )
+    val shelves = homeRowsIn(settings.homeRowOrder, settings.hiddenHomeRows)
+        .mapNotNull { row ->
+            val tracks = byRow[row].orEmpty()
+            if (tracks.isEmpty()) null else row to tracks
+        }
 
     Column(modifier = modifier.fillMaxSize()) {
-        ScreenHeader(title = "Home")
+        HomeHeader(
+            avatar = avatar,
+            profileName = profileName,
+            onOpenMenu = onOpenMenu,
+            onOpenProfile = onOpenProfile,
+        )
 
         if (!hasLibrary) {
             Box(
@@ -83,17 +100,13 @@ fun HomeScreen(
 
         LazyColumn(
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(bottom = 24.dp),
+            contentPadding = PaddingValues(bottom = 24.dp, top = 4.dp),
         ) {
-            item {
-                ShuffleAllRow(onClick = onShuffleAll)
-            }
-
-            sections.forEach { (title, tracks) ->
-                item(key = "title:$title") {
-                    ListSectionTitle(title)
+            shelves.forEach { (row, tracks) ->
+                item(key = "title:${row.name}") {
+                    ListSectionTitle(row.title)
                 }
-                item(key = "strip:$title") {
+                item(key = "strip:${row.name}") {
                     TrackStrip(tracks = tracks, onTrackClick = onTrackClick)
                 }
             }
@@ -101,23 +114,57 @@ fun HomeScreen(
     }
 }
 
+/**
+ * The title, the way into navigation, and the face that opens the profile.
+ *
+ * The menu mark is drawn rather than imported so the header keeps its size whatever the
+ * icon set calls a hamburger, and so the two lines have the same weight as the type.
+ */
 @Composable
-private fun ShuffleAllRow(onClick: () -> Unit) {
+private fun HomeHeader(
+    avatar: ImageBitmap?,
+    profileName: String,
+    onOpenMenu: () -> Unit,
+    onOpenProfile: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(start = 4.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // A button rather than a row that looks like a section heading. It is the one
-        // action on this screen, and it should not have to be recognised as one.
-        FilledTonalButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-            Icon(
-                imageVector = Lucide.Shuffle,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
+        IconButton(onClick = onOpenMenu) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                repeat(3) {
+                    Box(
+                        modifier = Modifier
+                            .width(18.dp)
+                            .height(2.dp)
+                            .background(MaterialTheme.colorScheme.onSurface),
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = "Home",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.weight(1f),
+        )
+
+        Box(
+            modifier = Modifier
+                .padding(end = 4.dp)
+                .clickable(onClick = onOpenProfile),
+        ) {
+            ProfileAvatar(
+                image = avatar,
+                name = profileName,
+                size = 38.dp,
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Shuffle all")
         }
     }
 }

@@ -3,13 +3,10 @@ package com.exodidio.mimi.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -29,11 +26,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.Folder
@@ -42,12 +36,15 @@ import com.composables.icons.lucide.House
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Search
-import com.composables.icons.lucide.User
+import com.exodidio.mimi.library.BottomTabId
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.Profile
 import com.exodidio.mimi.library.ThemeMode
 import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.library.addedWithin
 import com.exodidio.mimi.library.addingHiddenName
+import com.exodidio.mimi.library.bottomTabsIn
+import com.exodidio.mimi.library.playedWithin
 import com.exodidio.mimi.library.splitCredits
 import com.exodidio.mimi.ui.theme.MimiTheme
 import kotlinx.coroutines.launch
@@ -55,15 +52,16 @@ import kotlinx.coroutines.launch
 /**
  * The shell.
  *
- * Five items at the bottom, which is what fits: home, the library, the songs that were
- * loved, search, and the profile, which opens the drawer rather than going somewhere of
- * its own. How the library is sliced — songs, albums, artists, playlists, genres,
- * composers, years, folders — is a section switcher inside it rather than more tabs, so
- * tabs stay about going somewhere and the switcher stays about looking at the same
- * collection differently.
+ * Four items at the bottom — home, the library, the songs that were loved, search — which
+ * is what fits: navigation and the drawer are separate ideas, and a tab that only opened a
+ * panel was a tab spent on a button. How the library is sliced — songs, albums, artists,
+ * playlists, genres, composers, years, folders — is a section switcher inside it rather
+ * than more tabs, so tabs stay about going somewhere and the switcher stays about looking
+ * at the same collection differently.
  *
- * Settings live behind that fifth item because they are five pages now, and a drawer shows
- * all five without spending a tab or a row of pills on the way in.
+ * Settings live behind the drawer, which is opened from the home header. The profile is
+ * the avatar beside the same header, so it is a place of its own rather than a fifth
+ * destination that also happened to be a menu.
  */
 @Composable
 fun MimiApp() {
@@ -120,18 +118,15 @@ private fun MimiAppContent() {
     val settings = LocalSettings.current
     val context = LocalContext.current
 
-    // The profile is one value read by the drawer, the profile page and the fifth nav item,
-    // so the files are looked up only when the profile says they changed.
+    // The profile is one value read by the home avatar and the profile page, so the files
+    // are looked up only when the profile says they changed.
     val storedProfile by profileViewModel.profile.collectAsStateWithLifecycle()
     val profile = storedProfile ?: Profile()
     val pictureRevision = profileViewModel.pictureRevision
     val profileAvatarFile = remember(profile.hasAvatar, pictureRevision) {
         profileViewModel.avatarFile()
     }
-    val profileBannerFile = remember(profile.hasBanner, pictureRevision) {
-        profileViewModel.bannerFile()
-    }
-    val navAvatar = rememberProfileImage(profileAvatarFile, 128, pictureRevision)
+    val homeAvatar = rememberProfileImage(profileAvatarFile, 128, pictureRevision)
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -140,6 +135,11 @@ private fun MimiAppContent() {
     fun goFromDrawer(destination: Screen) {
         scope.launch { drawerState.close() }
         if (navigator.current != destination) navigator.openFromDrawer(destination)
+    }
+
+    /** Closes the drawer for a row that acts inside the screen rather than opening one. */
+    fun closeDrawer() {
+        scope.launch { drawerState.close() }
     }
 
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
@@ -266,14 +266,20 @@ private fun MimiAppContent() {
                         }
                     },
                     onGoToArtist = {
-                        // A tag can credit several people, and a screen opens on one of
-                        // them: the first name is the one the track is billed under.
+                        // A tag can credit several people. With "Always navigate to first
+                        // artist" on, the first name is the one the track is billed under;
+                        // with it off, the whole credit is opened as it was tagged.
                         val credit = tracks
                             .firstOrNull { it.contentUri == playback.current?.mediaId }
                             ?.artist
-                        splitCredits(credit, settings.creditSeparators)
-                            .firstOrNull()
-                            ?.let { closePlayerTo(Screen.ArtistDetail(it), LibrarySection.ARTISTS) }
+                        val artist = if (settings.alwaysFirstArtist) {
+                            splitCredits(credit, settings.artistSplit).firstOrNull()
+                        } else {
+                            credit
+                        }
+                        artist?.let {
+                            closePlayerTo(Screen.ArtistDetail(it), LibrarySection.ARTISTS)
+                        }
                     },
                 )
             } else {
@@ -282,24 +288,46 @@ private fun MimiAppContent() {
                     modifier = Modifier.fillMaxSize(),
                     drawerContent = {
                         AppDrawer(
-                            profile = profile,
-                            avatarFile = profileAvatarFile,
-                            bannerFile = profileBannerFile,
-                            pictureRevision = pictureRevision,
                             current = screen,
-                            showInsights = settings.showInsights,
-                            onOpenProfile = { goFromDrawer(Screen.Profile) },
-                            onEditProfile = { goFromDrawer(Screen.Profile) },
-                            onSearchSettings = { goFromDrawer(Screen.SettingsSearch) },
-                            onOpenSection = { group, section ->
+                            librarySection = navigator.librarySection,
+                            queueOpen = showNowPlaying && playerFace == PlayerFace.QUEUE,
+                            songCount = tracks.size,
+                            folderCount = folders.size,
+                            onOpenLibrary = {
+                                closeDrawer()
+                                navigator.librarySection = LibrarySection.SONGS
+                                navigator.selectTab(Screen.Library)
+                            },
+                            onOpenFolders = {
+                                closeDrawer()
+                                navigator.librarySection = LibrarySection.FOLDERS
+                                navigator.selectTab(Screen.Library)
+                            },
+                            onOpenQueue = {
+                                closeDrawer()
+                                if (hasTrack) {
+                                    playerFace = PlayerFace.QUEUE
+                                    showNowPlaying = true
+                                }
+                            },
+                            onOpenEqualizer = {
                                 goFromDrawer(
                                     Screen.SettingsGroup(
-                                        group = group,
-                                        reveal = SettingsReveal.Section(section),
+                                        group = SettingsGroupId.AUDIO,
+                                        reveal = SettingsReveal.Row("playback.equalizer"),
                                     )
                                 )
                             },
                             onOpenInsights = { goFromDrawer(Screen.Insights) },
+                            onScanMedia = {
+                                closeDrawer()
+                                libraryViewModel.refresh(force = true)
+                            },
+                            onOpenSettings = { goFromDrawer(Screen.SettingsHome) },
+                            onOpenAbout = {
+                                goFromDrawer(Screen.SettingsGroup(SettingsGroupId.ABOUT))
+                            },
+                            showInsights = settings.showInsights,
                         )
                     },
                 ) {
@@ -312,7 +340,10 @@ private fun MimiAppContent() {
                                     mostPlayed = mostPlayed,
                                     loved = lovedTracks,
                                     hasLibrary = tracks.isNotEmpty(),
-                                    onShuffleAll = { playerViewModel.shuffleAll(tracks) },
+                                    avatar = homeAvatar,
+                                    profileName = profile.name,
+                                    onOpenMenu = { scope.launch { drawerState.open() } },
+                                    onOpenProfile = { navigator.push(Screen.Profile) },
                                     onTrackClick = { list, index -> playerViewModel.play(list, index) },
                                 )
 
@@ -335,6 +366,9 @@ private fun MimiAppContent() {
                                     onOpenAlbum = { navigator.push(Screen.AlbumDetail(it.albumId)) },
                                     onOpenArtist = { navigator.push(Screen.ArtistDetail(it.artist)) },
                                     onOpenPlaylist = { navigator.push(Screen.PlaylistDetail(it.id)) },
+                                    onOpenAutoPlaylist = { kind ->
+                                        navigator.push(Screen.AutoPlaylist(kind))
+                                    },
                                     onCreatePlaylist = { creatingPlaylist = true },
                                     onPlayRandomAlbum = {
                                         libraryViewModel.playRandomAlbum { songs ->
@@ -378,17 +412,48 @@ private fun MimiAppContent() {
                                     onSubmit = libraryViewModel::rememberSearch,
                                 )
 
+                                Screen.SettingsHome -> SettingsHomeScreen(
+                                    onOpenSearch = { navigator.push(Screen.SettingsSearch) },
+                                    onOpenGroup = { group ->
+                                        navigator.push(Screen.SettingsGroup(group))
+                                    },
+                                    onBack = navigator::pop,
+                                )
+
                                 Screen.SettingsSearch -> SettingsSearchScreen(
                                     onPick = { entry ->
                                         // The result opens the page it lives on, with the
-                                        // row it names already in view.
-                                        navigator.openFromDrawer(
+                                        // row it names already in view. Pushed rather than
+                                        // replacing, so back returns to the results.
+                                        navigator.push(
                                             Screen.SettingsGroup(
                                                 group = entry.group,
                                                 reveal = SettingsReveal.Row(entry.key),
                                             )
                                         )
                                     },
+                                    onBack = navigator::pop,
+                                )
+
+                                is Screen.ManageList -> ManageListsScreen(
+                                    kind = screen.kind,
+                                    settings = settings,
+                                    onChange = settingsViewModel::change,
+                                    onBack = navigator::pop,
+                                )
+
+                                is Screen.AutoPlaylist -> AutoPlaylistScreen(
+                                    kind = screen.kind,
+                                    tracks = tracks,
+                                    playStats = playStats,
+                                    playingMediaId = playingMediaId,
+                                    favoriteIds = favoriteIds,
+                                    onToggleLove = libraryViewModel::toggleLoved,
+                                    onPlayNext = playerViewModel::playNext,
+                                    onAddToQueue = playerViewModel::addToQueue,
+                                    onAddToPlaylist = { addTarget = it },
+                                    onPlay = { list, index -> playerViewModel.play(list, index) },
+                                    onShuffle = { list -> playerViewModel.shuffleAll(list) },
                                     onBack = navigator::pop,
                                 )
 
@@ -421,6 +486,12 @@ private fun MimiAppContent() {
                                             )
                                         }
                                     },
+                                    onOpenManageTabs = {
+                                        navigator.push(Screen.ManageList(ManageListKind.BOTTOM_TABS))
+                                    },
+                                    onOpenManageRows = {
+                                        navigator.push(Screen.ManageList(ManageListKind.HOME_ROWS))
+                                    },
                                     onBack = navigator::pop,
                                     reveal = screen.reveal,
                                 )
@@ -447,7 +518,7 @@ private fun MimiAppContent() {
                                     playlistCount = playlists.size,
                                     playStats = playStats,
                                     listenDays = listenDays,
-                                    separators = settings.creditSeparators,
+                                    separators = settings.artistSplit,
                                     playingMediaId = playingMediaId,
                                     onBack = navigator::pop,
                                     onPlayTrack = { playerViewModel.play(listOf(it), 0) },
@@ -609,12 +680,16 @@ private fun MimiAppContent() {
                                         },
                                         onGoToArtist = {
                                             track?.let {
-                                                splitCredits(it.artist, settings.creditSeparators)
-                                                    .firstOrNull()
-                                                    ?.let { artist ->
-                                                        navigator.pop()
-                                                        navigator.push(Screen.ArtistDetail(artist))
-                                                    }
+                                                val credit = if (settings.alwaysFirstArtist) {
+                                                    splitCredits(it.artist, settings.artistSplit)
+                                                        .firstOrNull()
+                                                } else {
+                                                    it.artist
+                                                }
+                                                credit?.let { artist ->
+                                                    navigator.pop()
+                                                    navigator.push(Screen.ArtistDetail(artist))
+                                                }
                                             }
                                         },
                                     )
@@ -651,42 +726,29 @@ private fun MimiAppContent() {
                                 onExpand = { showNowPlaying = true },
                                 onPlayPause = playerViewModel::togglePlayPause,
                                 onNext = playerViewModel::next,
+                                extraControls = settings.extraControls,
+                                onPrevious = playerViewModel::previous,
                             )
                         }
 
                         NavigationBar {
-                            Tabs.forEach { tab ->
+                            bottomTabsIn(
+                                order = settings.bottomTabOrder,
+                                hidden = settings.hiddenBottomTabs,
+                            ).forEach { tab ->
+                                val destination = tabScreen(tab)
                                 NavigationBarItem(
-                                    selected = navigator.rootTab == tab.screen,
-                                    onClick = { navigator.selectTab(tab.screen) },
-                                    icon = { Icon(imageVector = tab.icon, contentDescription = null) },
+                                    selected = navigator.rootTab == destination,
+                                    onClick = { navigator.selectTab(destination) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = tabIcon(tab),
+                                            contentDescription = null,
+                                        )
+                                    },
                                     label = { Text(tab.label) },
                                 )
                             }
-                            // The fifth item is not a destination but the way into the
-                            // drawer, so it lights up while the drawer is out and not for
-                            // whatever page is behind it. The avatar, when there is one,
-                            // makes the whole of settings read as "yours" rather than as
-                            // a wrench in the corner.
-                            NavigationBarItem(
-                                selected = drawerState.isOpen,
-                                onClick = { scope.launch { drawerState.open() } },
-                                icon = {
-                                    if (navAvatar != null) {
-                                        Image(
-                                            bitmap = navAvatar,
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .clip(CircleShape),
-                                        )
-                                    } else {
-                                        Icon(imageVector = Lucide.User, contentDescription = null)
-                                    }
-                                },
-                                label = { Text("Profile") },
-                            )
                         }
                     }
                 }
@@ -810,6 +872,7 @@ private fun LibraryHome(
     onOpenAlbum: (com.exodidio.mimi.library.AlbumSummary) -> Unit,
     onOpenArtist: (com.exodidio.mimi.library.ArtistSummary) -> Unit,
     onOpenPlaylist: (PlaylistSummary) -> Unit,
+    onOpenAutoPlaylist: (AutoPlaylistKind) -> Unit,
     onCreatePlaylist: () -> Unit,
     onPlayRandomAlbum: () -> Unit,
     onOpenScreen: (Screen) -> Unit,
@@ -870,11 +933,26 @@ private fun LibraryHome(
                 onScrollIndex = keepScroll,
             )
 
-            LibrarySection.PLAYLISTS -> PlaylistsScreen(
-                playlists = playlists,
-                onPlaylistClick = onOpenPlaylist,
-                onCreate = onCreatePlaylist,
-            )
+            LibrarySection.PLAYLISTS -> {
+                // The automatic lists are counted with the same helpers and clock the
+                // screens themselves use, so a row says how many songs opening it shows.
+                val playStats by libraryViewModel.playStats.collectAsStateWithLifecycle()
+                val now = remember(playlists, settings.lastAddedRange, settings.recentlyPlayedRange) {
+                    System.currentTimeMillis()
+                }
+                PlaylistsScreen(
+                    playlists = playlists,
+                    lastAddedCount = tracks.addedWithin(settings.lastAddedRange, now).size,
+                    recentlyPlayedCount = tracks.playedWithin(
+                        playStats,
+                        settings.recentlyPlayedRange,
+                        now,
+                    ).size,
+                    onPlaylistClick = onOpenPlaylist,
+                    onOpenAutoPlaylist = onOpenAutoPlaylist,
+                    onCreate = onCreatePlaylist,
+                )
+            }
 
             LibrarySection.GENRES -> BrowseScreen(
                 title = "Genres",
@@ -914,17 +992,24 @@ private fun LibraryHome(
     }
 }
 
-private class Tab(val screen: Screen, val label: String, val icon: ImageVector)
-
 /**
- * The destinations in the navigation bar.
+ * Where a bottom tab goes, and what it is drawn with.
  *
- * The fifth item is not here on purpose: it opens the drawer rather than going somewhere,
- * so it has no screen to be lit for and is drawn beside these rather than from this list.
+ * The stored order holds names so a tab added in a later version can be appended to an
+ * order written before it existed; these two functions are the only place a name becomes a
+ * screen or an icon. A tab has no state of its own: everything it needs is either in
+ * [BottomTabId] or in the screen it opens.
  */
-private val Tabs = listOf(
-    Tab(Screen.Home, "Home", Lucide.House),
-    Tab(Screen.Library, "Library", Lucide.Music),
-    Tab(Screen.Loved, "Loved", Lucide.Heart),
-    Tab(Screen.Search, "Search", Lucide.Search),
-)
+private fun tabScreen(tab: BottomTabId): Screen = when (tab) {
+    BottomTabId.HOME -> Screen.Home
+    BottomTabId.LIBRARY -> Screen.Library
+    BottomTabId.LOVED -> Screen.Loved
+    BottomTabId.SEARCH -> Screen.Search
+}
+
+private fun tabIcon(tab: BottomTabId): ImageVector = when (tab) {
+    BottomTabId.HOME -> Lucide.House
+    BottomTabId.LIBRARY -> Lucide.Music
+    BottomTabId.LOVED -> Lucide.Heart
+    BottomTabId.SEARCH -> Lucide.Search
+}

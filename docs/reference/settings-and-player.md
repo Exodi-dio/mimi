@@ -106,7 +106,7 @@ MULTIPLE ARTISTS                      <- section heading: ~13sp, letterspaced, u
   - Slider `OFF · 3s · 6s · 9s · 12s`
 - `Gapless playback` toggle — "Remove gaps of silence between the tracks. Might cause playback issues on some devices."
 - `Keep shuffle mode` toggle — "Shuffle mode won't turn off when playing a new list of songs."
-- `Equalizer` `>` — "Tune EQ bands, bass boost, reverb, and virtualizer."
+- `Equalizer` `>` — "Shape EQ bands, bass boost, reverb, and virtualizer."
 
 **ENGINE**
 - `Playback engine` — value `System (MediaPlayer)` `>` — "Select the Enhanced engine for best quality and broadest format support."

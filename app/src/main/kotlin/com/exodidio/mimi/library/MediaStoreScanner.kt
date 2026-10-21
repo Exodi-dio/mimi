@@ -50,9 +50,10 @@ object MediaStoreScanner {
     /**
      * Which rows count as music.
      *
-     * The outside bounds come from the settings, so they are bound arguments rather than
-     * text pasted into the statement: the query keeps one shape and the provider can still
-     * prepare it.
+     * The lower bound comes from the settings, so it is a bound argument rather than text
+     * pasted into the statement: the query keeps one shape and the provider can still
+     * prepare it. An upper bound is added only when one is in force, because `DURATION < 0`
+     * would otherwise have to be special-cased to mean "no limit".
      */
     private const val selection =
         "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.MediaColumns.DURATION} > ?"
@@ -91,11 +92,15 @@ object MediaStoreScanner {
     suspend fun scan(
         context: Context,
         minDurationMs: Long = 0L,
+        maxDurationMs: Long = 0L,
         excludedFolders: Collection<String> = emptyList(),
     ): List<Track> =
         withContext(Dispatchers.IO) {
-            val found = runCatching { queryRows(context, extendedProjection, minDurationMs) }
-                .getOrElse { queryRows(context, baseProjection, minDurationMs) }
+            val found = runCatching {
+                queryRows(context, extendedProjection, minDurationMs, maxDurationMs)
+            }.getOrElse {
+                queryRows(context, baseProjection, minDurationMs, maxDurationMs)
+            }
             val rows = if (excludedFolders.isEmpty()) {
                 found
             } else {
@@ -137,14 +142,27 @@ object MediaStoreScanner {
         context: Context,
         projection: Array<String>,
         minDurationMs: Long,
+        maxDurationMs: Long,
     ): List<Row> {
+        val bounded = maxDurationMs > 0L
+        val query = if (bounded) {
+            "$selection AND ${MediaStore.MediaColumns.DURATION} <= ?"
+        } else {
+            selection
+        }
+        val arguments = if (bounded) {
+            arrayOf(minDurationMs.toString(), maxDurationMs.toString())
+        } else {
+            arrayOf(minDurationMs.toString())
+        }
+
         val rows = ArrayList<Row>()
         context.contentResolver
             .query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
-                selection,
-                arrayOf(minDurationMs.toString()),
+                query,
+                arguments,
                 "${MediaStore.MediaColumns.TITLE} COLLATE NOCASE ASC",
             )
             ?.use { cursor ->

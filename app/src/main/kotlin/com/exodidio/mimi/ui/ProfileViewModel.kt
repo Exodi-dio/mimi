@@ -16,11 +16,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * The profile, for the drawer that shows it and the page that changes it.
+ * The profile, for the avatar on the home screen and the page that changes it.
  *
- * One view model rather than each screen reading the store, because the name and pictures
- * appear in three places at once: the drawer header, the profile page and the fifth item
- * of the navigation bar. They are the same truth, so they are written once and observed.
+ * One view model rather than each place reading the store, because the name and pictures
+ * appear in two places at once: the avatar beside the home title, and the profile page it
+ * opens. They are the same truth, so they are written once and observed.
  *
  * Null until the first load finishes, rather than an empty default, so the page can tell
  * "no name yet" from "not read yet" and does not overwrite what is stored with a blank
@@ -37,9 +37,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     /**
      * Counts the pictures written, because a replaced picture keeps its file name.
      *
-     * Without something that changes, the drawer would keep drawing the picture it decoded
-     * first: the profile's own flags stay true whether the avatar is the old one or the new
-     * one, so nothing would tell the image to be read again.
+     * Without something that changes, the home avatar would keep drawing the picture it
+     * decoded first: the profile's own flags stay true whether the avatar is the old one or
+     * the new one, so nothing would tell the image to be read again.
      */
     var pictureRevision by mutableStateOf(0)
         private set

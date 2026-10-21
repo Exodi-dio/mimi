@@ -46,7 +46,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 private val AVATAR_OVERHANG = 48.dp
 
 /**
- * The name and pictures at the top of the drawer, and the only place they are changed.
+ * The name and pictures behind the avatar at the top right of the home screen, and the only
+ * place they are changed.
  *
  * A page with no settings rows on it, because a profile is not one: there is a banner, a
  * picture, a name and the buttons for those three, and anything else here would be a

@@ -32,6 +32,11 @@ import kotlinx.coroutines.withContext
  * rather than by file and pays for one read instead of ten.
  *
  * [albumId] is only a fallback, and zero means "no album" rather than album number zero.
+ *
+ * Two settings steer this. "Cache images" keeps a decoded cover in memory so a scrolling
+ * list does not read the same file again; with it off every visit decodes afresh, which is
+ * slower and smaller. "Use MediaStore provided art" decides whether the device's album-art
+ * index is consulted at all, which is the fallback that can be fast but also wrong.
  */
 @Composable
 fun rememberAlbumArt(
@@ -41,6 +46,9 @@ fun rememberAlbumArt(
     albumId: Long? = null,
 ): ImageBitmap? {
     val context = LocalContext.current
+    val settings = LocalSettings.current
+    val caching = settings.cacheImages
+    val storeArt = settings.mediaStoreArt
     val id = mediaId
     val album = albumId?.takeIf { it != 0L }
     val key = if (id == null && album == null) {
@@ -48,20 +56,22 @@ fun rememberAlbumArt(
     } else {
         "${cacheKey ?: id}${album?.let { "@a$it" }.orEmpty()}@$targetPx"
     }
-    return produceState<ImageBitmap?>(initialValue = null, key) {
+    return produceState<ImageBitmap?>(initialValue = null, key, caching, storeArt) {
         value = null
         if (key == null) return@produceState
 
-        artworkCache.get(key)?.let {
-            value = it.asImageBitmap()
-            return@produceState
+        if (caching) {
+            artworkCache.get(key)?.let {
+                value = it.asImageBitmap()
+                return@produceState
+            }
         }
 
         val decoded = withContext(Dispatchers.IO) {
             id?.let { decodeEmbeddedArt(context, it, targetPx) }
-                ?: album?.let { decodeStoredArt(context, it, targetPx) }
+                ?: album?.takeIf { storeArt }?.let { decodeStoredArt(context, it, targetPx) }
         }
-        if (decoded != null) artworkCache.put(key, decoded)
+        if (caching && decoded != null) artworkCache.put(key, decoded)
         value = decoded?.asImageBitmap()
     }.value
 }

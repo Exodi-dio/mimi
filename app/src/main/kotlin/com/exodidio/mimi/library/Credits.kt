@@ -46,9 +46,10 @@ fun splitCredits(value: String?, separators: List<String>): List<String> {
 /**
  * The separators as one stored value.
  *
- * This is the same newline-separated form the excluded folders use, so [decodeExcludedFolders]
- * reads it back and there is one format to remember rather than two. The order is kept as
- * the listener wrote it, because that is the order the settings screen shows it in.
+ * This is the same newline-separated form the other list settings use, so
+ * [decodeStoredList] reads it back and there is one format to remember rather than two.
+ * The order is kept as the listener wrote it, because that is the order the settings
+ * screen shows it in.
  */
 fun encodeCreditSeparators(separators: Collection<String>): String =
     separators.map { it.trim() }

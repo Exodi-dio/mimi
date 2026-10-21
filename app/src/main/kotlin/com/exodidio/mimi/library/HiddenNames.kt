@@ -16,11 +16,16 @@ data class HiddenNames(
     val isEmpty: Boolean get() = artists.isEmpty() && albums.isEmpty()
 }
 
-/** The hidden names in [this], normalised for comparison. */
+/**
+ * The hidden names in [this], normalised for comparison.
+ *
+ * The separators are the artist ones, and already account for the multiple-artists switch:
+ * `A & B` hides when either A or B is hidden, but only if that tag is read as two people.
+ */
 fun Settings.hiddenNames(): HiddenNames = HiddenNames(
     artists = hiddenArtists.normalisedNames(),
     albums = hiddenAlbums.normalisedNames(),
-    separators = creditSeparators,
+    separators = artistSplit,
 )
 
 /**

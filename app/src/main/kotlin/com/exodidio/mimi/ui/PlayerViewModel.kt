@@ -28,6 +28,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /** Restoring must happen at most once, and only if nothing is playing already. */
     private var restored = false
 
+    /**
+     * Whether shuffle survives starting a list, mirrored from settings.
+     *
+     * Read on a plain field rather than suspending inside [play], because tapping a song
+     * has to start it now: a database read on the way to the player would be a delay
+     * between the tap and the sound.
+     */
+    @Volatile
+    private var keepShuffleMode = true
+
     private var lastSavedMediaId: String? = null
     private var lastSavedBucket: Long = -1L
 
@@ -43,6 +53,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         viewModelScope.launch {
+            runCatching { store.settings.collect { keepShuffleMode = it.keepShuffleMode } }
+        }
+        viewModelScope.launch {
             runCatching { engine.connect() }
             // The session is still written down even when it is not restored, so turning
             // this on later picks up from wherever the app was left.
@@ -53,8 +66,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         trackHistory()
     }
 
-    /** Play the whole list from [index], so next/previous walk the row the user tapped. */
-    fun play(tracks: List<Track>, index: Int) = engine.playQueue(tracks, index)
+    /**
+     * Play the whole list from [index], so next/previous walk the row the user tapped.
+     *
+     * Starting a new list is the moment "Keep shuffle mode" is about: with it off, the
+     * shuffle state is cleared so the list plays in the order it was handed over.
+     */
+    fun play(tracks: List<Track>, index: Int) {
+        if (!keepShuffleMode) engine.setShuffle(false)
+        engine.playQueue(tracks, index)
+    }
 
     fun togglePlayPause() = engine.togglePlayPause()
 
@@ -83,7 +104,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun shuffleAll(tracks: List<Track>) {
         if (tracks.isEmpty()) return
         engine.setShuffle(true)
-        play(tracks, tracks.indices.random())
+        // Deliberately not [play]: turning shuffle on and then asking for the list is the
+        // one case where the keep-shuffle setting must not switch it straight back off.
+        engine.playQueue(tracks, tracks.indices.random())
     }
 
     fun jumpToQueueItem(index: Int) = engine.jumpToQueueItem(index)

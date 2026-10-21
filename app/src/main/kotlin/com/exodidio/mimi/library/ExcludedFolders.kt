@@ -15,21 +15,43 @@ package com.exodidio.mimi.library
  */
 internal const val STORED_LIST_SEPARATOR = "\n"
 
-/** The single stored value holding every excluded folder, or empty. */
-fun encodeExcludedFolders(folders: Collection<String>): String =
-    folders.map { it.trim().trim('/') }
+/**
+ * A list as one stored value, in the order it was given.
+ *
+ * This is the general form the settings use for anything list-shaped: separators, playlists
+ * ranges, the order of tabs. Order is kept rather than normalised because some of those
+ * lists mean something by it — the order of the bottom tabs is a choice, not a set.
+ */
+fun encodeStoredList(values: Collection<String>): String =
+    values.map { it.trim() }
         .filter { it.isNotEmpty() }
-        .distinctBy { it.lowercase() }
-        .sorted()
         .joinToString(STORED_LIST_SEPARATOR)
 
-/** The excluded folders held in [stored]. */
-fun decodeExcludedFolders(stored: String?): List<String> =
+/** The values held in [stored], in the order they were written. */
+fun decodeStoredList(stored: String?): List<String> =
     stored.orEmpty()
         .split(STORED_LIST_SEPARATOR)
         .map { it.trim() }
         .filter { it.isNotEmpty() }
-        .distinctBy { it.lowercase() }
+
+/**
+ * The single stored value holding every excluded folder, or empty.
+ *
+ * Folders are sorted and deduplicated because a folder belongs to a set: two rows naming
+ * the same folder twice would mean nothing, and the same set should always be written the
+ * same way, so a stored value can be compared with one that was just built.
+ */
+fun encodeExcludedFolders(folders: Collection<String>): String =
+    encodeStoredList(
+        folders.map { it.trim().trim('/') }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase() }
+            .sorted()
+    )
+
+/** The excluded folders held in [stored]. */
+fun decodeExcludedFolders(stored: String?): List<String> =
+    decodeStoredList(stored).distinctBy { it.lowercase() }
 
 /**
  * Whether [folder] is under one of [excluded].

@@ -20,10 +20,13 @@ sealed interface Screen {
 
     data object Search : Screen
 
+    /** The index of every settings page, reached from the drawer. */
+    data object SettingsHome : Screen
+
     /**
-     * One page of settings, reached from the drawer.
+     * One page of settings, reached from the index or from a search result.
      *
-     * [reveal] is the place on the page the drawer or the search screen had in mind. It is
+     * [reveal] is the place on the page the index or the search screen had in mind. It is
      * carried on the screen rather than kept beside it so opening a page and finding the
      * thing that was asked for are one decision: the page scrolls there once, tints the row
      * when it is a row, and then it is just a page again.
@@ -36,10 +39,16 @@ sealed interface Screen {
     /** Every setting by name, for someone who knows the word but not the page. */
     data object SettingsSearch : Screen
 
-    /** The name and pictures shown at the top of the drawer. */
+    /** Reordering and hiding the bottom tabs or the home shelves. */
+    data class ManageList(val kind: ManageListKind) : Screen
+
+    /** One of the automatic lists whose period is chosen in the playlists settings. */
+    data class AutoPlaylist(val kind: AutoPlaylistKind) : Screen
+
+    /** The name and pictures, reached from the avatar at the top right of the home screen. */
     data object Profile : Screen
 
-    /** What the library adds up to, reached from the tools page. */
+    /** What the library adds up to, reached from the About page's statistics row. */
     data object Statistics : Screen
 
     /** Charts of the library and of listening, over a period the screen chooses. */

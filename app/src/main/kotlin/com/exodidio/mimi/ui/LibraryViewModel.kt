@@ -11,7 +11,6 @@ import com.exodidio.mimi.library.FolderSummary
 import com.exodidio.mimi.library.GenreSummary
 import com.exodidio.mimi.library.LibraryChangeObserver
 import com.exodidio.mimi.library.ListenDay
-import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.PlayStat
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.Track
@@ -23,6 +22,8 @@ import com.exodidio.mimi.library.composerSummaries
 import com.exodidio.mimi.library.folderSummaries
 import com.exodidio.mimi.library.genreSummaries
 import com.exodidio.mimi.library.hiddenNames
+import com.exodidio.mimi.library.isExcludedFolder
+import com.exodidio.mimi.library.isWithinDurationRange
 import com.exodidio.mimi.library.tracksWithoutHidden
 import com.exodidio.mimi.library.yearSummaries
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -49,15 +50,22 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val settings = (application as MimiApplication).settings
 
     /**
-     * A list that has to be re-read when the separators change.
+     * A list that has to be re-read when the artist separators change.
      *
      * Splitting names is a setting rather than a property of the tags, so the same cache
      * has to be grouped again the moment it changes. Everything else about a detail
      * screen, such as which artist was opened, stays as it was.
      */
-    private fun <T> withSeparators(read: (List<String>) -> Flow<T>): Flow<T> =
+    private fun <T> withArtistSeparators(read: (List<String>) -> Flow<T>): Flow<T> =
         settings.settings
-            .map { it.creditSeparators }
+            .map { it.artistSplit }
+            .distinctUntilChanged()
+            .flatMapLatest { separators -> read(separators) }
+
+    /** The same, for the genre lists, which are split at their own separators. */
+    private fun <T> withGenreSeparators(read: (List<String>) -> Flow<T>): Flow<T> =
+        settings.settings
+            .map { it.genreSplit }
             .distinctUntilChanged()
             .flatMapLatest { separators -> read(separators) }
 
@@ -79,11 +87,15 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      * The library with hidden artists and albums already left out.
      *
      * Every list and count is derived from this one flow, so hiding a name is one filter
-     * in one place rather than a rule each screen has to remember to apply.
+     * in one place rather than a rule each screen has to remember to apply. The length
+     * range is applied here too, which is what makes moving a thumb take effect on the
+     * list at once rather than at the end of the next scan.
      */
     private val visibleTracks: StateFlow<List<Track>> =
         combine(library.tracks, settings.settings) { all, chosen ->
             all.tracksWithoutHidden(chosen.hiddenNames())
+                .filter { isWithinDurationRange(it.durationMs, chosen.minDurationMs, chosen.maxDurationMs) }
+                .filterNot { isExcludedFolder(it.folder, chosen.excludedFolders) }
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -118,7 +130,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     val artists: StateFlow<List<ArtistSummary>> =
         combine(visibleTracks, settings.settings) { all, chosen ->
-            all.artistSummaries(chosen.creditSeparators).sortedWith(
+            all.artistSummaries(chosen.artistSplit).sortedWith(
                 chosen.artistSort.comparator(chosen.sortDescending),
             )
         }.stateIn(
@@ -132,14 +144,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         library.tracksForAlbum(albumId).visible()
 
     fun tracksForArtist(artist: String): Flow<List<Track>> =
-        withSeparators { library.observeArtistTracks(artist, it) }.visible()
+        withArtistSeparators { library.observeArtistTracks(artist, it) }.visible()
 
     fun albumsForArtist(artist: String): Flow<List<AlbumSummary>> =
         tracksForArtist(artist).map { it.albumSummaries() }
 
     val genres: StateFlow<List<GenreSummary>> =
         combine(visibleTracks, settings.settings) { all, chosen ->
-            all.genreSummaries(chosen.creditSeparators)
+            all.genreSummaries(chosen.genreSplit)
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -171,7 +183,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         )
 
     fun tracksInGenre(genre: String): Flow<List<Track>> =
-        withSeparators { library.observeGenreTracks(genre, it) }.visible()
+        withGenreSeparators { library.observeGenreTracks(genre, it) }.visible()
 
     fun tracksByComposer(composer: String): Flow<List<Track>> =
         library.tracksByComposer(composer).visible()
@@ -180,10 +192,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun tracksInFolder(folder: String): Flow<List<Track>> = library.tracksInFolder(folder).visible()
 
-    /** Leaves hidden songs out of any list a detail screen asks for. */
+    /** Leaves hidden songs and songs outside the length range out of a detail screen's list. */
     private fun Flow<List<Track>>.visible(): Flow<List<Track>> =
         combine(this, settings.settings) { list, chosen ->
             list.tracksWithoutHidden(chosen.hiddenNames())
+                .filter { isWithinDurationRange(it.durationMs, chosen.minDurationMs, chosen.maxDurationMs) }
+                .filterNot { isExcludedFolder(it.folder, chosen.excludedFolders) }
         }
 
     /** What the home screen shows: a handful each, newest and most played first. */
@@ -365,21 +379,38 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     /** Watches the media store, so music copied onto the phone turns up on its own. */
     private val changeObserver = LibraryChangeObserver(application) { refresh(force = true) }
 
-    /** The shortest-song choice the current list was built with. */
-    private var scannedLength: MinSongLength? = null
+    /**
+     * What the current cache was built from: the two length bounds and the blacklist.
+     *
+     * All three decide which songs exist, so they are one value: widening either bound or
+     * changing the blacklist means the cache is missing songs, and one rebuild answers all
+     * of them. The folders are sorted so two equal sets cannot look like a change.
+     */
+    private data class ScannedFilter(
+        val minMs: Long,
+        val maxMs: Long,
+        val excludedFolders: List<String>,
+    )
+
+    private var scannedFilter: ScannedFilter? = null
 
     init {
         // Scanning follows the settings rather than happening on a fixed schedule. The
         // first reading is a warm start, which only scans if the cache has gone stale;
-        // after that, only a change to the shortest-song bound needs a rebuild, because
+        // after that, only a change to what songs are allowed needs a rebuild, because
         // that one changes which songs exist at all.
         viewModelScope.launch {
             settings.settings.collect { chosen ->
-                val previous = scannedLength
-                scannedLength = chosen.minSongLength
+                val filter = ScannedFilter(
+                    minMs = chosen.minDurationMs,
+                    maxMs = chosen.maxDurationMs,
+                    excludedFolders = chosen.excludedFolders.sorted(),
+                )
+                val previous = scannedFilter
+                scannedFilter = filter
                 when {
                     previous == null -> if (chosen.scanOnLaunch) refresh(force = false)
-                    previous != chosen.minSongLength -> refresh(force = true)
+                    previous != filter -> refresh(force = true)
                 }
                 if (chosen.watchForChanges) changeObserver.start() else changeObserver.stop()
             }

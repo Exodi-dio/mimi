@@ -21,10 +21,10 @@ import com.exodidio.mimi.library.FolderSummary
 import com.exodidio.mimi.library.isExcludedFolder
 
 /**
- * Choosing which folders are left out of the library.
+ * Choosing which folders are blacklisted.
  *
  * Each tap is written straight through rather than collected up and applied on a button.
- * An excluded folder is a statement about the library, not a draft of one, and a picker
+ * A blacklisted folder is a statement about the library, not a draft of one, and a picker
  * with its own unsaved state is a picker that can be dismissed into a lie.
  */
 @Composable
@@ -36,7 +36,7 @@ fun ExcludedFoldersDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Folders to leave out") },
+        title = { Text("Blacklist") },
         text = {
             Column(
                 modifier = Modifier
@@ -44,8 +44,8 @@ fun ExcludedFoldersDialog(
                     .verticalScroll(rememberScrollState()),
             ) {
                 Text(
-                    text = "Songs in an excluded folder are not added to the library. " +
-                        "Nothing is deleted from the device.",
+                    text = "Songs from the blacklisted folders will be hidden from your " +
+                        "library. Nothing is deleted from the device.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 8.dp),
