@@ -36,6 +36,7 @@ import com.composables.icons.lucide.Settings
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.ThemeMode
 import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.library.addingHiddenName
 import com.exodidio.mimi.library.splitCredits
 import com.exodidio.mimi.ui.theme.MimiTheme
 
@@ -63,7 +64,10 @@ fun MimiApp() {
     // one the activity set. Everything inside reads the settings from here, which is also
     // what keeps a display choice from being threaded through every screen that draws.
     MimiTheme(darkTheme = dark) {
-        CompositionLocalProvider(LocalSettings provides settings) {
+        CompositionLocalProvider(
+            LocalSettings provides settings,
+            LocalSettingsChange provides settingsViewModel::change,
+        ) {
             MimiAppContent()
         }
     }
@@ -87,6 +91,7 @@ private fun MimiAppContent() {
     val mostPlayed by libraryViewModel.mostPlayed.collectAsStateWithLifecycle()
     val playStats by libraryViewModel.playStats.collectAsStateWithLifecycle()
     val scanning by libraryViewModel.scanning.collectAsStateWithLifecycle()
+    val lastScanDropped by libraryViewModel.lastScanDropped.collectAsStateWithLifecycle()
     val searchQuery by libraryViewModel.query.collectAsStateWithLifecycle()
     val searchResults by libraryViewModel.searchResults.collectAsStateWithLifecycle()
     val recentSearches by libraryViewModel.recentSearches.collectAsStateWithLifecycle()
@@ -236,6 +241,7 @@ private fun MimiAppContent() {
 
                             Screen.Library -> LibraryHome(
                                 libraryViewModel = libraryViewModel,
+                                navigator = navigator,
                                 section = navigator.librarySection,
                                 onSectionChange = navigator::selectSection,
                                 tracks = tracks,
@@ -253,6 +259,11 @@ private fun MimiAppContent() {
                                 onOpenArtist = { navigator.push(Screen.ArtistDetail(it.artist)) },
                                 onOpenPlaylist = { navigator.push(Screen.PlaylistDetail(it.id)) },
                                 onCreatePlaylist = { creatingPlaylist = true },
+                                onPlayRandomAlbum = {
+                                    libraryViewModel.playRandomAlbum { songs ->
+                                        playerViewModel.play(songs, 0)
+                                    }
+                                },
                                 onOpenScreen = { navigator.push(it) },
                             )
 
@@ -265,6 +276,7 @@ private fun MimiAppContent() {
                                 onAddToQueue = playerViewModel::addToQueue,
                                 onAddToPlaylist = { addTarget = it },
                                 onTrackClick = { index -> playerViewModel.play(lovedTracks, index) },
+                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
                             )
 
                             Screen.Search -> SearchScreen(
@@ -293,7 +305,9 @@ private fun MimiAppContent() {
                                 settings = settings,
                                 onChange = settingsViewModel::change,
                                 trackCount = tracks.size,
+                                tracks = tracks,
                                 scanning = scanning,
+                                lastScanDropped = lastScanDropped,
                                 onRescan = { libraryViewModel.refresh(force = true) },
                                 onOpenStatistics = { navigator.push(Screen.Statistics) },
                                 folders = folders,
@@ -339,6 +353,12 @@ private fun MimiAppContent() {
                                 onBack = navigator::pop,
                                 onPlay = { list, index -> playerViewModel.play(list, index) },
                                 onShuffle = { list -> playerViewModel.shuffleAll(list) },
+                                onHideAlbum = { name ->
+                                    settingsViewModel.change {
+                                        it.copy(hiddenAlbums = it.hiddenAlbums.addingHiddenName(name))
+                                    }
+                                    navigator.pop()
+                                },
                             )
 
                             is Screen.ArtistDetail -> ArtistDetailScreen(
@@ -354,6 +374,13 @@ private fun MimiAppContent() {
                                 onBack = navigator::pop,
                                 onAlbumClick = { navigator.push(Screen.AlbumDetail(it.albumId)) },
                                 onPlay = { list, index -> playerViewModel.play(list, index) },
+                                onShuffle = { list -> playerViewModel.shuffleAll(list) },
+                                onHideArtist = { name ->
+                                    settingsViewModel.change {
+                                        it.copy(hiddenArtists = it.hiddenArtists.addingHiddenName(name))
+                                    }
+                                    navigator.pop()
+                                },
                             )
 
                             is Screen.PlaylistDetail -> {
@@ -629,6 +656,7 @@ private fun MimiAppContent() {
 @Composable
 private fun LibraryHome(
     libraryViewModel: LibraryViewModel,
+    navigator: NavigationViewModel,
     section: LibrarySection,
     onSectionChange: (LibrarySection) -> Unit,
     tracks: List<Track>,
@@ -646,6 +674,7 @@ private fun LibraryHome(
     onOpenArtist: (com.exodidio.mimi.library.ArtistSummary) -> Unit,
     onOpenPlaylist: (PlaylistSummary) -> Unit,
     onCreatePlaylist: () -> Unit,
+    onPlayRandomAlbum: () -> Unit,
     onOpenScreen: (Screen) -> Unit,
 ) {
     // Collected here rather than passed in: these four are only ever shown in this one
@@ -654,6 +683,16 @@ private fun LibraryHome(
     val composers by libraryViewModel.composers.collectAsStateWithLifecycle()
     val years by libraryViewModel.years.collectAsStateWithLifecycle()
     val folders by libraryViewModel.folders.collectAsStateWithLifecycle()
+
+    // The position is read once, when this section is rebuilt. Keeping it keyed by the
+    // order and the hidden names means a reordering starts at the top instead of at an
+    // offset that now points somewhere else.
+    val settings = LocalSettings.current
+    val scrollKey = libraryScrollKey(section, settings)
+    val initialScroll = remember(scrollKey) { navigator.scrollIndex(scrollKey) }
+    val keepScroll: (Int) -> Unit = remember(scrollKey) {
+        { index -> navigator.rememberScroll(scrollKey, index) }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         LibrarySectionSwitcher(selected = section, onSelect = onSectionChange)
@@ -672,19 +711,26 @@ private fun LibraryHome(
                 onAddToPlaylist = onAddToPlaylist,
                 onRefresh = { libraryViewModel.refresh(force = true) },
                 playingMediaId = playingMediaId,
-                onTrackClick = { index -> onPlay(tracks, index) },
+                onPlay = onPlay,
+                initialScrollIndex = initialScroll,
+                onScrollIndex = keepScroll,
             )
 
             LibrarySection.ALBUMS -> AlbumsScreen(
                 albums = albums,
                 scanning = scanning,
                 onAlbumClick = onOpenAlbum,
+                onPlayRandomAlbum = onPlayRandomAlbum,
+                initialScrollIndex = initialScroll,
+                onScrollIndex = keepScroll,
             )
 
             LibrarySection.ARTISTS -> ArtistsScreen(
                 artists = artists,
                 scanning = scanning,
                 onArtistClick = onOpenArtist,
+                initialScrollIndex = initialScroll,
+                onScrollIndex = keepScroll,
             )
 
             LibrarySection.PLAYLISTS -> PlaylistsScreen(

@@ -35,6 +35,24 @@ class SettingsTest {
     }
 
     @Test
+    fun `hidden names and detail order survive being written and read back`() {
+        val chosen = Settings(
+            hiddenArtists = listOf("Ada", "Bea"),
+            hiddenAlbums = listOf("Blue"),
+            detailSort = DetailSort.DURATION,
+        )
+
+        assertEquals(chosen, Settings.from(Settings.rows(chosen)))
+    }
+
+    @Test
+    fun `an unknown detail order falls back to as listed`() {
+        val settings = Settings.from(listOf(MetaEntry("setting.detail_sort", "SIDEWAYS")))
+
+        assertEquals(DetailSort.AS_LISTED, settings.detailSort)
+    }
+
+    @Test
     fun `the switched off default is off`() {
         val defaults = Settings()
         assertTrue(defaults.scanOnLaunch)

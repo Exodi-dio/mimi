@@ -30,11 +30,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.library.AlbumSort
 import com.exodidio.mimi.library.ArtistSort
+import com.exodidio.mimi.library.DetailSort
 import com.exodidio.mimi.library.FolderSummary
 import com.exodidio.mimi.library.MinSongLength
 import com.exodidio.mimi.library.Settings
 import com.exodidio.mimi.library.SongSort
 import com.exodidio.mimi.library.ThemeMode
+import com.exodidio.mimi.library.Track
+import com.exodidio.mimi.library.duplicateGroups
+import com.exodidio.mimi.library.removingHiddenName
 import kotlinx.coroutines.delay
 
 /** Which question, if any, is currently open in a dialog. */
@@ -44,8 +48,11 @@ private enum class SettingsChoice {
     SONG_SORT,
     ALBUM_SORT,
     ARTIST_SORT,
+    DETAIL_SORT,
     EQUALIZER_PRESET,
     EXCLUDED_FOLDERS,
+    HIDDEN_NAMES,
+    DUPLICATES,
     CREDIT_SEPARATORS,
 }
 
@@ -73,7 +80,9 @@ fun SettingsScreen(
     settings: Settings,
     onChange: ((Settings) -> Settings) -> Unit,
     trackCount: Int,
+    tracks: List<Track>,
     scanning: Boolean,
+    lastScanDropped: Int?,
     onRescan: () -> Unit,
     onOpenStatistics: () -> Unit,
     folders: List<FolderSummary>,
@@ -98,6 +107,7 @@ fun SettingsScreen(
     }
 
     val results = remember(query) { searchSettings(query) }
+    val duplicates = remember(tracks) { tracks.duplicateGroups() }
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(title = "Settings")
@@ -151,6 +161,7 @@ fun SettingsScreen(
                     onChange = onChange,
                     trackCount = trackCount,
                     scanning = scanning,
+                    lastScanDropped = lastScanDropped,
                     onRescan = onRescan,
                     onOpenStatistics = onOpenStatistics,
                     onChoose = { openChoice = it },
@@ -217,6 +228,35 @@ fun SettingsScreen(
             onDismiss = { openChoice = null },
         )
 
+        SettingsChoice.DETAIL_SORT -> SortSheet(
+            title = "Sort lists inside a screen",
+            fields = DetailSort.entries.map { it.label },
+            selectedIndex = settings.detailSort.ordinal,
+            descending = settings.sortDescending,
+            onField = { index ->
+                onChange { it.copy(detailSort = DetailSort.entries[index]) }
+            },
+            onDescending = { value -> onChange { it.copy(sortDescending = value) } },
+            onDismiss = { openChoice = null },
+        )
+
+        SettingsChoice.HIDDEN_NAMES -> HiddenNamesDialog(
+            artists = settings.hiddenArtists,
+            albums = settings.hiddenAlbums,
+            onUnhideArtist = { name ->
+                onChange { it.copy(hiddenArtists = it.hiddenArtists.removingHiddenName(name)) }
+            },
+            onUnhideAlbum = { name ->
+                onChange { it.copy(hiddenAlbums = it.hiddenAlbums.removingHiddenName(name)) }
+            },
+            onDismiss = { openChoice = null },
+        )
+
+        SettingsChoice.DUPLICATES -> DuplicateFinderDialog(
+            groups = duplicates,
+            onDismiss = { openChoice = null },
+        )
+
         SettingsChoice.EQUALIZER_PRESET -> EqualizerDialog(
             settings = settings,
             onChange = onChange,
@@ -257,6 +297,7 @@ private fun SettingsPageList(
     onChange: ((Settings) -> Settings) -> Unit,
     trackCount: Int,
     scanning: Boolean,
+    lastScanDropped: Int?,
     onRescan: () -> Unit,
     onOpenStatistics: () -> Unit,
     onChoose: (SettingsChoice) -> Unit,
@@ -298,6 +339,7 @@ private fun SettingsPageList(
                                 settings = settings,
                                 trackCount = trackCount,
                                 scanning = scanning,
+                                lastScanDropped = lastScanDropped,
                                 onRescan = onRescan,
                                 onOpenStatistics = onOpenStatistics,
                                 onChange = onChange,
@@ -330,6 +372,7 @@ private fun SettingsEntryRow(
     settings: Settings,
     trackCount: Int,
     scanning: Boolean,
+    lastScanDropped: Int?,
     onRescan: () -> Unit,
     onOpenStatistics: () -> Unit,
     onChange: ((Settings) -> Settings) -> Unit,
@@ -372,17 +415,31 @@ private fun SettingsEntryRow(
             value = songCountLabel(trackCount),
         )
 
-        "library.rescan" -> SettingsActionRow(
-            title = entry.title,
-            subtitle = if (scanning) "Looking…" else subtitle,
-            enabled = !scanning,
-            onClick = onRescan,
-        )
+        "library.rescan" -> Column {
+            SettingsActionRow(
+                title = entry.title,
+                subtitle = if (scanning) "Looking…" else subtitle,
+                enabled = !scanning,
+                onClick = onRescan,
+            )
+            if (!scanning && lastScanDropped != null && lastScanDropped > 0) {
+                SettingsNote(
+                    "${countLabel(lastScanDropped, "missing file")} " +
+                        "dropped from the cache on the last scan."
+                )
+            }
+        }
 
         "library.played_from" -> SettingsInfoRow(
             title = entry.title,
             subtitle = subtitle,
             value = "This device",
+        )
+
+        "library.duplicates" -> SettingsActionRow(
+            title = entry.title,
+            subtitle = subtitle,
+            onClick = { onChoose(SettingsChoice.DUPLICATES) },
         )
 
         "library.credit_separators" -> SettingsActionRow(
@@ -419,10 +476,23 @@ private fun SettingsEntryRow(
             subtitle = subtitle,
         )
 
+        "library.detail_sort" -> SettingsChoiceRow(
+            title = entry.title,
+            subtitle = subtitle,
+            value = settings.detailSort.label,
+            onClick = { onChoose(SettingsChoice.DETAIL_SORT) },
+        )
+
         "library.excluded_folders" -> SettingsActionRow(
             title = entry.title,
             subtitle = subtitle,
             onClick = { onChoose(SettingsChoice.EXCLUDED_FOLDERS) },
+        )
+
+        "library.hidden_names" -> SettingsActionRow(
+            title = entry.title,
+            subtitle = subtitle,
+            onClick = { onChoose(SettingsChoice.HIDDEN_NAMES) },
         )
 
         "playback.equalizer_enabled" -> SettingsToggleRow(
@@ -544,6 +614,17 @@ private fun subtitleFor(entry: SettingEntry, settings: Settings): String = when 
         0 -> "Every folder on the device is read."
         1 -> "One folder is left out of the library."
         else -> "${settings.excludedFolders.size} folders are left out of the library."
+    }
+
+    "library.hidden_names" -> {
+        val artists = settings.hiddenArtists.size
+        val albums = settings.hiddenAlbums.size
+        when {
+            artists == 0 && albums == 0 -> "No artist or album is hidden."
+            artists == 1 && albums == 0 -> "One artist is hidden from the library."
+            artists == 0 && albums == 1 -> "One album is hidden from the library."
+            else -> "$artists artists and $albums albums are hidden from the library."
+        }
     }
 
     "library.credit_separators" -> settings.creditSeparators.joinToString(" · ")

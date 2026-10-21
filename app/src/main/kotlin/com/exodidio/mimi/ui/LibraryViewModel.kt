@@ -15,7 +15,15 @@ import com.exodidio.mimi.library.PlayStat
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.Track
 import com.exodidio.mimi.library.YearSummary
+import com.exodidio.mimi.library.albumSummaries
+import com.exodidio.mimi.library.artistSummaries
 import com.exodidio.mimi.library.comparator
+import com.exodidio.mimi.library.composerSummaries
+import com.exodidio.mimi.library.folderSummaries
+import com.exodidio.mimi.library.genreSummaries
+import com.exodidio.mimi.library.hiddenNames
+import com.exodidio.mimi.library.tracksWithoutHidden
+import com.exodidio.mimi.library.yearSummaries
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -66,13 +75,28 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
+     * The library with hidden artists and albums already left out.
+     *
+     * Every list and count is derived from this one flow, so hiding a name is one filter
+     * in one place rather than a rule each screen has to remember to apply.
+     */
+    private val visibleTracks: StateFlow<List<Track>> =
+        combine(library.tracks, settings.settings) { all, chosen ->
+            all.tracksWithoutHidden(chosen.hiddenNames())
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    /**
      * Comes straight from the Room cache, so the list paints instantly on launch.
      *
      * The chosen order is applied here rather than in the query. The cache reads back one
      * way, and sorting it again is a pass over a list already in memory, where asking the
      * database for each order would mean a different statement per choice.
      */
-    val tracks: StateFlow<List<Track>> = combine(library.tracks, settings.settings) { all, chosen ->
+    val tracks: StateFlow<List<Track>> = combine(visibleTracks, settings.settings) { all, chosen ->
         all.sortedWith(chosen.songSort.comparator(chosen.sortDescending))
     }.stateIn(
         scope = viewModelScope,
@@ -80,66 +104,86 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList(),
     )
 
-    val albums: StateFlow<List<AlbumSummary>> = combine(library.albums, settings.settings) { all, chosen ->
-        all.sortedWith(chosen.albumSort.comparator())
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList(),
-    )
+    val albums: StateFlow<List<AlbumSummary>> =
+        combine(visibleTracks, settings.settings) { all, chosen ->
+            all.albumSummaries().sortedWith(
+                chosen.albumSort.comparator(chosen.sortDescending),
+            )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
-    val artists: StateFlow<List<ArtistSummary>> = combine(
-        withSeparators(library::observeArtists),
-        settings.settings,
-    ) { all, chosen ->
-        all.sortedWith(chosen.artistSort.comparator())
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList(),
-    )
+    val artists: StateFlow<List<ArtistSummary>> =
+        combine(visibleTracks, settings.settings) { all, chosen ->
+            all.artistSummaries(chosen.creditSeparators).sortedWith(
+                chosen.artistSort.comparator(chosen.sortDescending),
+            )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
     /** Detail screens ask for their own slice; the query is keyed by the screen's argument. */
-    fun tracksForAlbum(albumId: Long): Flow<List<Track>> = library.tracksForAlbum(albumId)
+    fun tracksForAlbum(albumId: Long): Flow<List<Track>> =
+        library.tracksForAlbum(albumId).visible()
 
     fun tracksForArtist(artist: String): Flow<List<Track>> =
-        withSeparators { library.observeArtistTracks(artist, it) }
+        withSeparators { library.observeArtistTracks(artist, it) }.visible()
 
     fun albumsForArtist(artist: String): Flow<List<AlbumSummary>> =
-        withSeparators { library.observeArtistAlbums(artist, it) }
+        tracksForArtist(artist).map { it.albumSummaries() }
 
-    val genres: StateFlow<List<GenreSummary>> = withSeparators(library::observeGenres).stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList(),
-    )
+    val genres: StateFlow<List<GenreSummary>> =
+        combine(visibleTracks, settings.settings) { all, chosen ->
+            all.genreSummaries(chosen.creditSeparators)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
-    val composers: StateFlow<List<ComposerSummary>> = library.composers.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList(),
-    )
+    val composers: StateFlow<List<ComposerSummary>> = visibleTracks
+        .map { it.composerSummaries() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
-    val years: StateFlow<List<YearSummary>> = library.years.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList(),
-    )
+    val years: StateFlow<List<YearSummary>> = visibleTracks
+        .map { it.yearSummaries() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
-    val folders: StateFlow<List<FolderSummary>> = library.folders.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList(),
-    )
+    val folders: StateFlow<List<FolderSummary>> = visibleTracks
+        .map { it.folderSummaries() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
     fun tracksInGenre(genre: String): Flow<List<Track>> =
-        withSeparators { library.observeGenreTracks(genre, it) }
+        withSeparators { library.observeGenreTracks(genre, it) }.visible()
 
-    fun tracksByComposer(composer: String): Flow<List<Track>> = library.tracksByComposer(composer)
+    fun tracksByComposer(composer: String): Flow<List<Track>> =
+        library.tracksByComposer(composer).visible()
 
-    fun tracksInYear(year: Int): Flow<List<Track>> = library.tracksInYear(year)
+    fun tracksInYear(year: Int): Flow<List<Track>> = library.tracksInYear(year).visible()
 
-    fun tracksInFolder(folder: String): Flow<List<Track>> = library.tracksInFolder(folder)
+    fun tracksInFolder(folder: String): Flow<List<Track>> = library.tracksInFolder(folder).visible()
+
+    /** Leaves hidden songs out of any list a detail screen asks for. */
+    private fun Flow<List<Track>>.visible(): Flow<List<Track>> =
+        combine(this, settings.settings) { list, chosen ->
+            list.tracksWithoutHidden(chosen.hiddenNames())
+        }
 
     /** What the home screen shows: a handful each, newest and most played first. */
     val recentlyAdded: StateFlow<List<Track>> =
@@ -185,6 +229,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         .flatMapLatest { text ->
             if (text.isBlank()) flowOf(emptyList()) else library.search(text)
         }
+        .combine(settings.settings) { results, chosen ->
+            results.tracksWithoutHidden(chosen.hiddenNames())
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -229,11 +276,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             initialValue = emptySet(),
         )
 
-    val lovedTracks: StateFlow<List<Track>> = library.lovedTracks.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList(),
-    )
+    val lovedTracks: StateFlow<List<Track>> =
+        combine(library.lovedTracks, settings.settings) { all, chosen ->
+            all.tracksWithoutHidden(chosen.hiddenNames())
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
     val playlists: StateFlow<List<PlaylistSummary>> = library.playlists.stateIn(
         scope = viewModelScope,
@@ -241,7 +291,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList(),
     )
 
-    fun tracksInPlaylist(playlistId: Long): Flow<List<Track>> = library.tracksInPlaylist(playlistId)
+    fun tracksInPlaylist(playlistId: Long): Flow<List<Track>> =
+        library.tracksInPlaylist(playlistId).visible()
 
     fun toggleLoved(trackId: Long) {
         val loved = trackId in favoriteIds.value
@@ -264,6 +315,26 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { library.deletePlaylist(playlistId) }
     }
 
+    /**
+     * Hands back the songs of one album chosen at random.
+     *
+     * The pick is made from the albums the screen is showing, so a hidden album cannot be
+     * chosen, and the songs are read fresh rather than from a snapshot so a rescan between
+     * the tap and the read cannot leave the player holding rows that no longer exist.
+     */
+    fun playRandomAlbum(onReady: (List<Track>) -> Unit) {
+        val choices = albums.value
+        if (choices.isEmpty()) return
+
+        val chosen = choices.random()
+        viewModelScope.launch {
+            runCatching { tracksForAlbum(chosen.albumId).first() }
+                .getOrNull()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let(onReady)
+        }
+    }
+
     fun addToPlaylist(playlistId: Long, trackId: Long) {
         viewModelScope.launch { library.addToPlaylist(playlistId, trackId) }
     }
@@ -278,6 +349,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _scanning = MutableStateFlow(false)
     val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
+
+    /** How many cached rows the last completed scan dropped, or null before one has run. */
+    private val _lastScanDropped = MutableStateFlow<Int?>(null)
+    val lastScanDropped: StateFlow<Int?> = _lastScanDropped.asStateFlow()
 
     /** Watches the media store, so music copied onto the phone turns up on its own. */
     private val changeObserver = LibraryChangeObserver(application) { refresh(force = true) }
@@ -313,7 +388,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _scanning.value = true
             try {
-                library.refresh(force = force)
+                val result = library.refresh(force = force)
+                if (!result.skipped) _lastScanDropped.value = result.dropped
             } catch (_: SecurityException) {
                 // Permission revoked mid-flight; the permission gate will re-ask.
             } finally {

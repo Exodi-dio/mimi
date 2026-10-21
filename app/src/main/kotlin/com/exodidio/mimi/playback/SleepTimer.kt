@@ -112,7 +112,7 @@ class SleepTimer(private val scope: CoroutineScope) {
 }
 
 /** How long the fade takes. */
-const val SLEEP_FADE_MS = 10_000L
+const val SLEEP_FADE_MS = 15_000L
 
 /**
  * How loud the player should be with [remainingMs] of a [fadeMs] fade left.

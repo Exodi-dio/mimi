@@ -89,6 +89,14 @@ val settingsCatalog: List<SettingEntry> = listOf(
         keywords = listOf("storage", "local", "source", "device", "files"),
     ),
     SettingEntry(
+        key = "library.duplicates",
+        page = SettingsPage.LIBRARY,
+        section = "This device",
+        title = "Find duplicates",
+        subtitle = "Tracks sharing a title, artist and length.",
+        keywords = listOf("duplicate", "same", "copies", "twice", "cleanup", "files"),
+    ),
+    SettingEntry(
         key = "library.credit_separators",
         page = SettingsPage.LIBRARY,
         section = "Names and grouping",
@@ -127,9 +135,17 @@ val settingsCatalog: List<SettingEntry> = listOf(
         key = "library.sort_descending",
         page = SettingsPage.LIBRARY,
         section = "Names and grouping",
-        title = "Sort songs descending",
-        subtitle = "Newest first, longest first, Z to A, songs only.",
+        title = "Reverse the chosen order",
+        subtitle = "Songs, albums, artists and the lists inside them.",
         keywords = listOf("reverse", "direction", "order", "ascending", "descending"),
+    ),
+    SettingEntry(
+        key = "library.detail_sort",
+        page = SettingsPage.LIBRARY,
+        section = "Names and grouping",
+        title = "Sort lists inside a screen",
+        subtitle = "Albums, artists, playlists and the browse screens. As listed unless asked.",
+        keywords = listOf("order", "sorting", "detail", "album", "playlist", "browse", "list"),
     ),
     SettingEntry(
         key = "library.excluded_folders",
@@ -138,6 +154,14 @@ val settingsCatalog: List<SettingEntry> = listOf(
         title = "Folders to leave out",
         subtitle = "Every folder on the device is read.",
         keywords = listOf("exclude", "ignore", "skip", "folder", "hide", "leave out"),
+    ),
+    SettingEntry(
+        key = "library.hidden_names",
+        page = SettingsPage.LIBRARY,
+        section = "Songs to leave out",
+        title = "Hidden artists and albums",
+        subtitle = "Names hidden from every list. Nothing is deleted.",
+        keywords = listOf("hide", "hidden", "artist", "album", "unhide", "show", "leave out"),
     ),
     SettingEntry(
         key = "playback.equalizer_enabled",
@@ -187,7 +211,7 @@ val settingsCatalog: List<SettingEntry> = listOf(
         page = SettingsPage.PLAYBACK,
         section = "Behaviour",
         title = "Fade out with the sleep timer",
-        subtitle = "Turns the volume down over the last ten seconds.",
+        subtitle = "Turns the volume down over the last fifteen seconds.",
         keywords = listOf("sleep", "timer", "fade", "volume", "stop"),
     ),
     SettingEntry(

@@ -13,3 +13,16 @@ data class SavedPlayback(
     val shuffleEnabled: Boolean,
     val repeatOrdinal: Int,
 )
+
+/**
+ * What one scan did.
+ *
+ * [skipped] says the freshness window was still open and nothing was read, which is a
+ * different answer from a scan that found no music. [dropped] counts cached rows the new
+ * scan no longer contains, whether the file went away or a setting stopped including it.
+ */
+data class ScanResult(
+    val found: Int,
+    val dropped: Int,
+    val skipped: Boolean,
+)

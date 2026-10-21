@@ -1,5 +1,7 @@
 package com.exodidio.mimi.ui
 
+import com.exodidio.mimi.library.Track
+
 /**
  * Formats a duration for display. Kept as a plain function (and unit tested) so
  * it can be reused by the list, the player and the queue later.
@@ -70,3 +72,45 @@ fun formatTotalDuration(durationMs: Long): String {
 
 private fun plural(count: Long, word: String): String =
     if (count == 1L) "1 $word" else "$count ${word}s"
+
+/**
+ * A running time in the short form a list header uses.
+ *
+ * The long form in [formatTotalDuration] is right for a statistics page where the number
+ * is the point. A header has one line shared with a song count, so the units are shortened
+ * and only the two largest are kept: "2 hr 41 min" says what a listener wants at a glance,
+ * where "2 hours 41 minutes" pushes the count off the line.
+ */
+fun formatListDuration(durationMs: Long): String {
+    if (durationMs <= 0L) return "0 min"
+
+    val totalSeconds = durationMs / 1000
+    val days = totalSeconds / 86_400
+    val hours = (totalSeconds % 86_400) / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val seconds = totalSeconds % 60
+
+    if (days > 0) {
+        val dayText = if (days == 1L) "1 day" else "$days days"
+        return if (hours > 0) "$dayText $hours hr" else dayText
+    }
+    if (hours > 0) return if (minutes > 0) "$hours hr $minutes min" else "$hours hr"
+    if (minutes > 0) return "$minutes min"
+    return "$seconds sec"
+}
+
+/** How long a list of songs would take, used by every list header that totals one. */
+fun totalDurationMs(tracks: List<Track>): Long =
+    tracks.sumOf { it.durationMs.coerceAtLeast(0L) }
+
+/**
+ * The one line every song list header uses: the count, then the running time.
+ *
+ * A list with nothing in it says only that. Printing "0 songs · 0 min" reads like a
+ * measurement of nothing rather than an empty shelf.
+ */
+fun songSummaryLabel(count: Int, durationMs: Long): String {
+    val songs = songCountLabel(count)
+    if (count == 0 || durationMs <= 0L) return songs
+    return "$songs \u00b7 ${formatListDuration(durationMs)}"
+}

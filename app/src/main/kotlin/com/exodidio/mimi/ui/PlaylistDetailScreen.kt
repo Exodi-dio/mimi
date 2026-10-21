@@ -62,7 +62,7 @@ fun PlaylistDetailScreen(
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
             title = name,
-            subtitle = songCountLabel(tracks.size),
+            subtitle = songSummaryLabel(tracks.size, totalDurationMs(tracks)),
             onBack = onBack,
             trailing = {
                 IconButton(onClick = onRename) {

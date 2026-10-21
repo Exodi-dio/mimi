@@ -3,10 +3,10 @@ package com.exodidio.mimi.library
 /**
  * How the albums grid is ordered.
  *
- * Names read upwards, which is how the library already reads them; the counts run
- * downwards, because a list ordered by how much of it there is only means anything with
- * the most at the top. There is no separate direction switch for these two, since one
- * would make "most songs" also mean "fewest songs" and nobody asks for that.
+ * An order has a natural direction: names read upwards, which is how the library already
+ * reads them, while counts run downwards, because a list ordered by how much of it there
+ * is only means anything with the most at the top. The reverse switch flips whichever
+ * order is chosen; it is a view preference, not a second meaning for the field.
  */
 enum class AlbumSort(val label: String) {
     NAME("Album name"),
@@ -14,7 +14,7 @@ enum class AlbumSort(val label: String) {
     SONGS("Most songs"),
 }
 
-/** How the artists list is ordered. Same reasoning as [AlbumSort]. */
+/** How the artists list is ordered, with the same natural directions as [AlbumSort]. */
 enum class ArtistSort(val label: String) {
     NAME("Artist name"),
     ALBUMS("Most albums"),
@@ -31,17 +31,20 @@ enum class ArtistSort(val label: String) {
  *
  * Pure, so the ordering can be tested without a device.
  */
-fun AlbumSort.comparator(): Comparator<AlbumSummary> = when (this) {
-    AlbumSort.NAME -> compareBy<AlbumSummary> { it.album.lowercase() }
-        .thenBy { it.albumId }
+fun AlbumSort.comparator(descending: Boolean = false): Comparator<AlbumSummary> {
+    val natural: Comparator<AlbumSummary> = when (this) {
+        AlbumSort.NAME -> compareBy<AlbumSummary> { it.album.lowercase() }
+            .thenBy { it.albumId }
 
-    AlbumSort.ARTIST -> compareBy<AlbumSummary, String?>(nullsLast()) { it.artist?.lowercase() }
-        .thenBy { it.album.lowercase() }
-        .thenBy { it.albumId }
+        AlbumSort.ARTIST -> compareBy<AlbumSummary, String?>(nullsLast()) { it.artist?.lowercase() }
+            .thenBy { it.album.lowercase() }
+            .thenBy { it.albumId }
 
-    AlbumSort.SONGS -> compareByDescending<AlbumSummary> { it.trackCount }
-        .thenBy { it.album.lowercase() }
-        .thenBy { it.albumId }
+        AlbumSort.SONGS -> compareByDescending<AlbumSummary> { it.trackCount }
+            .thenBy { it.album.lowercase() }
+            .thenBy { it.albumId }
+    }
+    return if (descending) natural.reversed() else natural
 }
 
 /**
@@ -50,12 +53,15 @@ fun AlbumSort.comparator(): Comparator<AlbumSummary> = when (this) {
  * The name is the tie-break rather than an id, because an artist is named by a string
  * rather than by a row, and two artists cannot share a name.
  */
-fun ArtistSort.comparator(): Comparator<ArtistSummary> = when (this) {
-    ArtistSort.NAME -> compareBy<ArtistSummary> { it.artist.lowercase() }
+fun ArtistSort.comparator(descending: Boolean = false): Comparator<ArtistSummary> {
+    val natural: Comparator<ArtistSummary> = when (this) {
+        ArtistSort.NAME -> compareBy<ArtistSummary> { it.artist.lowercase() }
 
-    ArtistSort.ALBUMS -> compareByDescending<ArtistSummary> { it.albumCount }
-        .thenBy { it.artist.lowercase() }
+        ArtistSort.ALBUMS -> compareByDescending<ArtistSummary> { it.albumCount }
+            .thenBy { it.artist.lowercase() }
 
-    ArtistSort.SONGS -> compareByDescending<ArtistSummary> { it.trackCount }
-        .thenBy { it.artist.lowercase() }
+        ArtistSort.SONGS -> compareByDescending<ArtistSummary> { it.trackCount }
+            .thenBy { it.artist.lowercase() }
+    }
+    return if (descending) natural.reversed() else natural
 }

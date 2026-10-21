@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +19,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,26 +28,59 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.exodidio.mimi.library.ArtistSummary
 
+/**
+ * Every artist credited in the library.
+ *
+ * The list is derived from the visible songs, so a hidden artist leaves here with the rest
+ * of their work. The rail only appears once the list is long enough to need it, and its
+ * letters come from the list as shown rather than from the whole alphabet.
+ */
 @Composable
 fun ArtistsScreen(
     artists: List<ArtistSummary>,
     scanning: Boolean,
     onArtistClick: (ArtistSummary) -> Unit,
     modifier: Modifier = Modifier,
+    initialScrollIndex: Int = 0,
+    onScrollIndex: (Int) -> Unit = {},
 ) {
+    val listState = rememberKeptListState(initialScrollIndex, onScrollIndex)
+    val stops = remember(artists) { alphabetStops(artists.map { it.artist }) }
+    val rail = alphabetRailVisible(artists.size)
+    val active = activeAlphabetLetter(stops, listState.firstVisibleItemIndex)
+
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
             title = "Artists",
             subtitle = if (scanning) "Scanning\u2026" else artistCountLabel(artists.size),
+            trailing = { ArtistSortButton() },
         )
 
         if (artists.isEmpty()) {
             EmptyLibraryMessage(scanning, modifier = Modifier.weight(1f))
         } else {
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(artists, key = { it.artist }) { artist ->
-                    ArtistRow(artist = artist, onClick = { onArtistClick(artist) })
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        end = if (rail) 28.dp else 0.dp,
+                        bottom = 24.dp,
+                    ),
+                ) {
+                    items(artists, key = { it.artist }) { artist ->
+                        ArtistRow(artist = artist, onClick = { onArtistClick(artist) })
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+
+                if (rail) {
+                    AlphabetRail(
+                        stops = stops,
+                        active = active,
+                        onJump = { index -> listState.animateScrollToItem(index) },
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    )
                 }
             }
         }

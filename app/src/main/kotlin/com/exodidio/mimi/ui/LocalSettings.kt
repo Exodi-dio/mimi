@@ -15,3 +15,12 @@ import com.exodidio.mimi.library.Settings
  * recomposition rather than a rewrite.
  */
 val LocalSettings = compositionLocalOf { Settings() }
+
+/**
+ * How a screen changes a setting without being handed the whole settings view model.
+ *
+ * Sorting is offered in list headers all over the app. Threading a change callback through
+ * every screen would add an argument to each one for an action that only a sheet uses, and
+ * a composition local keeps the sheets and the settings screen writing the same way.
+ */
+val LocalSettingsChange = compositionLocalOf<((Settings) -> Settings) -> Unit> { {} }

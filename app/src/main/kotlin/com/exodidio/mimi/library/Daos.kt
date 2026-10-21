@@ -21,6 +21,10 @@ interface TrackDao {
     @Query("SELECT COUNT(*) FROM tracks")
     suspend fun count(): Int
 
+    /** Every cached id, so a scan can tell what has gone since the last one. */
+    @Query("SELECT id FROM tracks")
+    suspend fun ids(): List<Long>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(tracks: List<Track>)
 

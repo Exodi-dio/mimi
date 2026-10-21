@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -26,11 +27,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import com.composables.icons.lucide.ArrowDown
 import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.Copy
 import com.composables.icons.lucide.Ellipsis
 import com.composables.icons.lucide.Heart
 import com.composables.icons.lucide.Info
@@ -74,6 +80,9 @@ fun TrackRow(
     val actions = LocalTrackActions.current
     val selected = actions.isSelected(track.id)
     var menuOpen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val path = trackFilePath(track)
 
     Box(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -175,6 +184,23 @@ fun TrackRow(
         }
 
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            // The path is shown before it is copied so the listener can see which file
+            // they are about to act on; two rows can share a title and only this says
+            // where each one lives.
+            Text(
+                text = path,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            MenuAction("Copy file path", Lucide.Copy) {
+                menuOpen = false
+                clipboard.setText(AnnotatedString(path))
+                Toast.makeText(context, "File path copied", Toast.LENGTH_SHORT).show()
+            }
             MenuAction("Song info", Lucide.Info) {
                 menuOpen = false
                 actions.onShowInfo(track)

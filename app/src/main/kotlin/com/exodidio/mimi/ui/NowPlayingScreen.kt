@@ -1,7 +1,15 @@
 package com.exodidio.mimi.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,10 +39,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.Disc3
 import com.composables.icons.lucide.Ellipsis
@@ -178,40 +190,70 @@ fun NowPlayingScreen(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                // A horizontal swipe changes face; the detector only claims a gesture once
+                // it is clearly sideways, so a lyrics list keeps its vertical scrolling and
+                // the queue's arrow buttons keep their taps.
+                .pointerInput(face) {
+                    var travelled = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { travelled = 0f },
+                        onHorizontalDrag = { _, amount -> travelled += amount },
+                        onDragCancel = { travelled = 0f },
+                        onDragEnd = {
+                            val threshold = 72.dp.toPx()
+                            if (abs(travelled) > threshold) {
+                                val direction = if (travelled < 0f) 1 else -1
+                                PlayerFace.entries.getOrNull(face.ordinal + direction)
+                                    ?.let(onShowFace)
+                            }
+                            travelled = 0f
+                        },
+                    )
+                },
         ) {
-            when (face) {
-                PlayerFace.QUEUE -> QueuePanel(
-                    queue = state.queue,
-                    currentIndex = state.currentIndex,
-                    shuffled = state.shuffleEnabled,
-                    onItemClick = onQueueItemClick,
-                    onMoveUp = onQueueMoveUp,
-                    onMoveDown = onQueueMoveDown,
-                    onRemove = onQueueRemove,
-                    onSaveAsPlaylist = onSaveQueue,
-                    onClearUpcoming = onClearUpcoming,
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                PlayerFace.LYRICS -> when (val lyrics = lyricsState) {
-                    is LyricsState.Found -> LyricsPanel(
-                        lyrics = lyrics.lyrics,
-                        positionMs = state.positionMs,
-                        onSeek = onSeek,
+            AnimatedContent(
+                targetState = face,
+                transitionSpec = {
+                    val forward = targetState.ordinal > initialState.ordinal
+                    slideInHorizontally { width -> if (forward) width else -width } togetherWith
+                        slideOutHorizontally { width -> if (forward) -width else width }
+                },
+                label = "player face",
+            ) { shown ->
+                when (shown) {
+                    PlayerFace.QUEUE -> QueuePanel(
+                        queue = state.queue,
+                        currentIndex = state.currentIndex,
+                        shuffled = state.shuffleEnabled,
+                        onItemClick = onQueueItemClick,
+                        onMoveUp = onQueueMoveUp,
+                        onMoveDown = onQueueMoveDown,
+                        onRemove = onQueueRemove,
+                        onSaveAsPlaylist = onSaveQueue,
+                        onClearUpcoming = onClearUpcoming,
                         modifier = Modifier.fillMaxSize(),
                     )
 
-                    LyricsState.Loading -> LyricsMessage("Looking for lyrics\u2026")
-                    LyricsState.None -> MissingLyrics(modifier = Modifier.fillMaxSize())
-                }
+                    PlayerFace.LYRICS -> when (val lyrics = lyricsState) {
+                        is LyricsState.Found -> LyricsPanel(
+                            lyrics = lyrics.lyrics,
+                            positionMs = state.positionMs,
+                            onSeek = onSeek,
+                            modifier = Modifier.fillMaxSize(),
+                        )
 
-                PlayerFace.ARTWORK -> Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    AlbumArtwork(mediaId = current?.mediaId)
+                        LyricsState.Loading -> LyricsMessage("Looking for lyrics\u2026")
+                        LyricsState.None -> MissingLyrics(modifier = Modifier.fillMaxSize())
+                    }
+
+                    PlayerFace.ARTWORK -> Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        AlbumArtwork(mediaId = current?.mediaId)
+                    }
                 }
             }
         }
@@ -433,22 +475,30 @@ private fun repeatDescription(mode: RepeatMode): String = when (mode) {
     RepeatMode.ONE -> "Repeat one"
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AlbumArtwork(mediaId: String?) {
     val artwork = rememberAlbumArt(mediaId)
+    var fullScreen by remember(mediaId) { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxWidth(0.8f)
             .aspectRatio(1f)
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            // Tapping and holding both open the cover: a long press is the gesture the
+            // request named, and a plain tap keeps it reachable for TalkBack.
+            .combinedClickable(
+                onClick = { if (artwork != null) fullScreen = true },
+                onLongClick = { if (artwork != null) fullScreen = true },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         if (artwork != null) {
             Image(
                 bitmap = artwork,
-                contentDescription = null,
+                contentDescription = "Album artwork",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -459,6 +509,30 @@ private fun AlbumArtwork(mediaId: String?) {
                 modifier = Modifier.size(72.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+
+    if (fullScreen && artwork != null) {
+        Dialog(
+            onDismissRequest = { fullScreen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.94f))
+                    .clickable { fullScreen = false },
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    bitmap = artwork,
+                    contentDescription = "Album artwork, full screen",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                )
+            }
         }
     }
 }

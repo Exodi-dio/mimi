@@ -35,6 +35,24 @@ class NavigationViewModel : ViewModel() {
 
     var librarySection by mutableStateOf(LibrarySection.SONGS)
 
+    /**
+     * Where each library section was left, keyed by section and the order it was shown in.
+     *
+     * Held here because the screens are rebuilt when a detail screen opens; a value kept
+     * in the screen would be gone exactly when returning to the list needs it. A plain map
+     * rather than snapshot state: the position is read once when a list is rebuilt, and
+     * making every scroll tick a recomposition would cost more than it saves.
+     */
+    private val scrollPositions = HashMap<String, Int>()
+
+    /** The first visible row remembered for [key], or the top of the list. */
+    fun scrollIndex(key: String): Int = scrollPositions[key] ?: 0
+
+    /** Remembers the first visible row for a section that is being scrolled. */
+    fun rememberScroll(key: String, index: Int) {
+        scrollPositions[key] = index
+    }
+
     val current: Screen get() = stack.last()
 
     /** Which tab is lit. A detail screen keeps its parent tab lit while it is open. */

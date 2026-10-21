@@ -88,6 +88,19 @@ data class Settings(
     val romanizeLyrics: Boolean = false,
     /** Folders whose songs are left out of the library entirely. */
     val excludedFolders: List<String> = emptyList(),
+    /** Artist names hidden from every list, search and count. */
+    val hiddenArtists: List<String> = emptyList(),
+    /** Album names hidden from every list, search and count. */
+    val hiddenAlbums: List<String> = emptyList(),
+    /**
+     * How lists inside a browse screen are ordered.
+     *
+     * Separate from [songSort] because an album, an artist and a playlist each arrive in a
+     * meaningful order of their own. It defaults to leaving that order alone, so turning
+     * the setting on is a choice rather than something an upgrade does behind the
+     * listener's back.
+     */
+    val detailSort: DetailSort = DetailSort.AS_LISTED,
     /** How a credit line is split into the people on it. */
     val creditSeparators: List<String> = DEFAULT_CREDIT_SEPARATORS,
 ) {
@@ -152,6 +165,9 @@ data class Settings(
         private const val EQUALIZER_PROFILES = "setting.equalizer_profiles"
         private const val ROMANIZE_LYRICS = "setting.romanize_lyrics"
         private const val EXCLUDED_FOLDERS = "setting.excluded_folders"
+        private const val HIDDEN_ARTISTS = "setting.hidden_artists"
+        private const val HIDDEN_ALBUMS = "setting.hidden_albums"
+        private const val DETAIL_SORT = "setting.detail_sort"
         private const val CREDIT_SEPARATORS = "setting.credit_separators"
 
         /**
@@ -195,6 +211,11 @@ data class Settings(
                 equalizerProfiles = decodeProfiles(stored[EQUALIZER_PROFILES]),
                 romanizeLyrics = stored.boolean(ROMANIZE_LYRICS, defaults.romanizeLyrics),
                 excludedFolders = decodeExcludedFolders(stored[EXCLUDED_FOLDERS]),
+                hiddenArtists = decodeHiddenNames(stored[HIDDEN_ARTISTS]),
+                hiddenAlbums = decodeHiddenNames(stored[HIDDEN_ALBUMS]),
+                detailSort = stored[DETAIL_SORT]
+                    ?.let { name -> DetailSort.entries.firstOrNull { it.name == name } }
+                    ?: defaults.detailSort,
                 creditSeparators = stored[CREDIT_SEPARATORS]
                     ?.let(::decodeExcludedFolders)
                     ?: defaults.creditSeparators,
@@ -223,6 +244,9 @@ data class Settings(
             MetaEntry(EQUALIZER_PROFILES, encodeProfiles(settings.equalizerProfiles)),
             MetaEntry(ROMANIZE_LYRICS, if (settings.romanizeLyrics) "1" else "0"),
             MetaEntry(EXCLUDED_FOLDERS, encodeExcludedFolders(settings.excludedFolders)),
+            MetaEntry(HIDDEN_ARTISTS, encodeHiddenNames(settings.hiddenArtists)),
+            MetaEntry(HIDDEN_ALBUMS, encodeHiddenNames(settings.hiddenAlbums)),
+            MetaEntry(DETAIL_SORT, settings.detailSort.name),
             MetaEntry(CREDIT_SEPARATORS, encodeCreditSeparators(settings.creditSeparators)),
         )
 

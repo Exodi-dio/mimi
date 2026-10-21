@@ -283,19 +283,30 @@ class LibraryRepository(
     /**
      * Refreshes the cache from MediaStore.
      *
+     * The ids already cached are read before the rebuild so the result can say how many
+     * rows went away. A row can disappear because the file did, but also because it moved
+     * into an excluded folder or below the shortest-song bound; from the cache's side
+     * those are the same thing, and the count is what makes the rebuild visible instead of
+     * silent.
+     *
      * @param force ignore the freshness window and scan regardless.
-     * @return number of tracks found, or -1 when the scan was skipped.
      */
-    suspend fun refresh(force: Boolean = false): Int {
+    suspend fun refresh(force: Boolean = false): ScanResult {
         val now = System.currentTimeMillis()
-        if (!force && now - lastScanAt() < FRESHNESS_WINDOW_MS) return -1
+        if (!force && now - lastScanAt() < FRESHNESS_WINDOW_MS) {
+            return ScanResult(found = 0, dropped = 0, skipped = true)
+        }
 
+        val previousIds = trackDao.ids()
         val chosen = Settings.from(metaDao.getAllWithPrefix(Settings.PREFIX))
         val scanned = MediaStoreScanner.scan(
             context = context,
             minDurationMs = chosen.minSongLength.millis,
             excludedFolders = chosen.excludedFolders,
         )
+        val foundIds = scanned.mapTo(HashSet()) { it.id }
+        val dropped = previousIds.count { it !in foundIds }
+
         database.withTransaction {
             trackDao.deleteAll()
             trackDao.insertAll(scanned)
@@ -305,7 +316,7 @@ class LibraryRepository(
             playStatDao.prune()
             metaDao.put(MetaEntry(KEY_LAST_SCAN, now.toString()))
         }
-        return scanned.size
+        return ScanResult(found = scanned.size, dropped = dropped, skipped = false)
     }
 
     /**

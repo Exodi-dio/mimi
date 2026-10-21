@@ -81,4 +81,51 @@ class FormattingTest {
         assertEquals("1 day 1 hour", formatTotalDuration(90_000_000L))
         assertEquals("2 days 3 hours", formatTotalDuration(183_600_000L))
     }
+
+    @Test
+    fun `a list header keeps the two largest units in short form`() {
+        assertEquals("0 min", formatListDuration(0L))
+        assertEquals("30 sec", formatListDuration(30_000L))
+        assertEquals("2 min", formatListDuration(120_000L))
+        assertEquals("1 hr 5 min", formatListDuration(3_900_000L))
+        assertEquals("1 hr", formatListDuration(3_600_000L))
+        assertEquals("1 day 2 hr", formatListDuration(93_600_000L))
+    }
+
+    @Test
+    fun `a song summary carries the count and the running time`() {
+        assertEquals("1 song \u00b7 3 min", songSummaryLabel(1, 180_000L))
+        assertEquals("12 songs \u00b7 36 min", songSummaryLabel(12, 2_160_000L))
+    }
+
+    @Test
+    fun `an empty list has no running time bolted on`() {
+        assertEquals("0 songs", songSummaryLabel(0, 0L))
+        assertEquals("3 songs", songSummaryLabel(3, 0L))
+    }
+
+    @Test
+    fun `the total ignores songs whose length is unknown`() {
+        val songs = listOf(
+            track(1, 120_000L),
+            track(2, 180_000L),
+            track(3, -1L),
+        )
+
+        assertEquals(300_000L, totalDurationMs(songs))
+    }
+
+    private fun track(id: Long, durationMs: Long) = com.exodidio.mimi.library.Track(
+        id = id,
+        title = "Song $id",
+        artist = null,
+        album = null,
+        albumId = 0L,
+        durationMs = durationMs,
+        contentUri = "content://media/audio/$id",
+        dateModified = 0L,
+        sizeBytes = 0L,
+        mimeType = null,
+        trackNumber = 0,
+    )
 }
