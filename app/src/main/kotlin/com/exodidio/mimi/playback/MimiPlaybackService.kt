@@ -628,7 +628,6 @@ class MimiPlaybackService : MediaLibraryService() {
      * change, is forwarded as it always was, because only the two transport commands have
      * a sound to smooth.
      */
-    @OptIn(UnstableApi::class)
     private inner class FadedPlayer(player: ExoPlayer) : ForwardingPlayer(player) {
         override fun play() = requestPlay()
 

@@ -33,12 +33,16 @@ class VolumeRamp(
      * and to the target at the top, so a level is never asked for beyond the two ends.
      */
     fun levelAt(elapsedMs: Long): Float {
+        val start = from.coerceIn(0f, 1f)
         val target = to.coerceIn(0f, 1f)
         if (durationMs <= 0) return target
 
         val at = (stoppedAtMs ?: elapsedMs).coerceAtLeast(0L)
         val along = (at.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-        return (from + (target - from) * along).coerceIn(0f, 1f)
+        // Clamped to the two ends rather than only to nothing and one, so rounding in the
+        // multiply cannot carry the level a hair past the target and make it audible.
+        return (start + (target - start) * along)
+            .coerceIn(minOf(start, target), maxOf(start, target))
     }
 
     /** True once there is nothing left of the ramp to run. */

@@ -55,7 +55,8 @@ class VolumeRampTest {
 
     @Test
     fun `a ramp up never passes its target or drops below zero`() {
-        val levels = (0L..600L step 25L).map { VolumeRamp(500, 0f, 1f).levelAt(it) }
+        val ramp = VolumeRamp(500, 0f, 1f)
+        val levels = (0L..600L step 25L).map { ramp.levelAt(it) }
 
         assertEquals(levels.sorted(), levels)
         assertTrue(levels.all { it in 0f..1f })
