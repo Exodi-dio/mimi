@@ -538,35 +538,45 @@ class MimiPlaybackService : MediaLibraryService() {
         // A pause while the two tracks overlap ends the overlap: left running, its
         // handover would start the next track by itself a moment after the pause.
         if (crossfadeJob?.isActive == true) {
+            // The player is stopped before the overlap is cleared, because clearing it
+            // puts the outgoing track back to full for an instant while it is still
+            // sounding.
+            player.pause()
             stopCrossfade()
             endPlayPauseRamp()
-            player.pause()
             return
         }
 
         // A second pause while the first is already taking the level down finishes the
         // job at once, so tapping twice cannot stretch the fade or leave it half way.
         if (playPauseRamp?.isActive == true && playPauseTarget < 1f) {
-            endPlayPauseRamp()
-            player.pause()
+            pauseNow(player)
             return
         }
 
         val duration = currentSettings.fadeOnPlayPauseMs
         if (duration <= 0 || levelBelongsToAnotherRamp() || playPauseVolume <= 0f) {
-            endPlayPauseRamp()
-            player.pause()
+            pauseNow(player)
             return
         }
 
         rampTo(0f, duration) {
             // The level goes back to one once the player is stopped, so the next play
             // starts from its own ramp rather than from whatever this one reached.
-            player.pause()
-            playPauseTarget = 1f
-            playPauseVolume = 1f
-            applyVolumes()
+            pauseNow(player)
         }
+    }
+
+    /**
+     * Stops the player and then clears the ramp.
+     *
+     * The order matters: clearing the ramp brings its factor back to one, and doing that
+     * before the player has stopped would put the last moment of sound back to full. A
+     * second tap during a fade out would then be a click rather than the end of a fade.
+     */
+    private fun pauseNow(player: ExoPlayer) {
+        player.pause()
+        endPlayPauseRamp()
     }
 
     /**

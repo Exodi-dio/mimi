@@ -100,7 +100,7 @@ MULTIPLE ARTISTS                      <- section heading: ~13sp, letterspaced, u
 `Audio` / "How tracks crossfade, duck for system sounds, and which engine decodes them."
 
 **PLAYBACK**
-- `Fade music on play / pause` `BETA` — value `off` — "Smooth fade in/out instead of cutting abruptly."
+- `Fade music on play / pause` `BETA` — value `off` — "Resuming comes up from silence and pausing goes down to it over this length, instead of cutting the sound."
   - Slider `OFF · 250 · 500 · 750 · 1000`
 - `Crossfade` `BETA` — value `off` — "Overlap the end of one track with the start of the next."
   - Slider `OFF · 3s · 6s · 9s · 12s`
