@@ -104,6 +104,12 @@ class SongsFactory(private val context: Context) : RemoteViewsService.RemoteView
     override fun getItemId(position: Int): Long = position.toLong()
 
     /**
+     * The rows are not the same rows after a rescan, so they are not given ids that
+     * would promise otherwise.
+     */
+    override fun hasStableIds(): Boolean = false
+
+    /**
      * The songs, read from the cache.
      *
      * Read here rather than waited for, because the launcher asks for the rows straight

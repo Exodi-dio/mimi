@@ -624,7 +624,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 if (!result.skipped) {
                     _lastScanDropped.value = result.dropped
                     // The widgets show the library, so a rebuilt library has to reach them.
-                    refreshWidgets(application)
+                    refreshWidgets(app)
                 }
             } catch (_: SecurityException) {
                 // Permission revoked mid-flight; the permission gate will re-ask.

@@ -21,6 +21,7 @@ import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession.Callback
 import androidx.media3.session.MediaSession
 import com.exodidio.mimi.MimiApplication
 import com.exodidio.mimi.browse.BrowseSong
@@ -674,7 +675,7 @@ class MimiPlaybackService : MediaLibraryService() {
      * the library as the queue, so that next has somewhere to go.
      */
     @OptIn(UnstableApi::class)
-    private inner class LibraryCallback : MediaLibraryService.Callback {
+    private inner class LibraryCallback : Callback {
 
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
@@ -756,12 +757,12 @@ class MimiPlaybackService : MediaLibraryService() {
             mediaItems: List<MediaItem>,
             startIndex: Int,
             startPositionMs: Long,
-        ): ListenableFuture<MediaSession.Callback.MediaItemsWithStartPosition> {
-            val future = SettableFuture.create<MediaSession.Callback.MediaItemsWithStartPosition>()
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
             if (controller.packageName == packageName) {
                 if (mediaItems.none { it.localConfiguration?.uri == null }) {
                     return Futures.immediateFuture(
-                        MediaSession.Callback.MediaItemsWithStartPosition(
+                        MediaSession.MediaItemsWithStartPosition(
                             mediaItems,
                             startIndex,
                             startPositionMs,
@@ -772,7 +773,7 @@ class MimiPlaybackService : MediaLibraryService() {
                     try {
                         withContext(Dispatchers.IO) {
                             future.set(
-                                MediaSession.Callback.MediaItemsWithStartPosition(
+                                MediaSession.MediaItemsWithStartPosition(
                                     resolveItems(mediaItems),
                                     startIndex,
                                     startPositionMs,
@@ -794,7 +795,7 @@ class MimiPlaybackService : MediaLibraryService() {
                         val wanted = mediaItems.firstOrNull()?.mediaId
                         val at = songs.indexOfFirst { it.mediaId == wanted }
                         future.set(
-                            MediaSession.Callback.MediaItemsWithStartPosition(
+                            MediaSession.MediaItemsWithStartPosition(
                                 songs.map { it.toMediaItem() },
                                 if (at >= 0) at else 0,
                                 0L,
