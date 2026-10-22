@@ -15,11 +15,25 @@ import androidx.media3.common.AudioAttributes as Media3AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.LibraryParams
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 import com.exodidio.mimi.MimiApplication
+import com.exodidio.mimi.browse.BrowseSong
+import com.exodidio.mimi.browse.LibraryIndex
+import com.exodidio.mimi.browse.toMediaItem
 import com.exodidio.mimi.library.Settings
+import com.exodidio.mimi.widgets.NowPlayingStore
+import com.exodidio.mimi.widgets.WidgetSong
+import com.exodidio.mimi.widgets.refreshNowPlayingWidget
+import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,8 +45,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Owns the real player. Being a [MediaSessionService] is what buys us background
- * playback, the media notification, lock-screen controls and headset buttons.
+ * Owns the real player. Being a [MediaLibraryService] is what buys us background
+ * playback, the media notification, lock-screen controls and headset buttons, and it is
+ * also what lets a car or another app walk the library: the browse tree hangs off the
+ * very session the app itself plays through, so there is one player and one
+ * notification whichever of them the music came from.
  *
  * Audio focus is handled here rather than by the player so the "Lower volume on focal
  * loss" setting has somewhere to act: the player can either stop for a notification or
@@ -45,9 +62,17 @@ import kotlinx.coroutines.withContext
  * and the ramp of a crossfade. None of them can undo another, and the one that is
  * quieter at the moment is the one that is heard.
  */
-class MimiPlaybackService : MediaSessionService() {
+class MimiPlaybackService : MediaLibraryService() {
 
-    private var mediaSession: MediaSession? = null
+    private var mediaSession: MediaLibrarySession? = null
+
+    /**
+     * The library as a browser sees it.
+     *
+     * Held in memory rather than read from the database on every question, because a car
+     * walks the same shelves over and over.
+     */
+    private val libraryIndex by lazy { LibraryIndex(this) }
 
     /** Shuts the effect down with the player; it holds an audio session otherwise. */
     private var equalizer: TrackEqualizer? = null
@@ -167,7 +192,11 @@ class MimiPlaybackService : MediaSessionService() {
             .setAudioAttributes(attributes, /* handleAudioFocus = */ false)
             .build()
 
-        mediaSession = MediaSession.Builder(this, player).build()
+        mediaSession = MediaLibrarySession.Builder(this, player, LibraryCallback()).build()
+
+        // The library is watched rather than read on demand: a browser asks for the
+        // shelves from a binder, and the answer cannot wait for a database read.
+        libraryIndex.start(scope)
 
         // The equaliser binds to an audio session, and the player only makes one once it has
         // something to play, so it is applied on every change of playing state as well as on
@@ -198,6 +227,7 @@ class MimiPlaybackService : MediaSessionService() {
                         bassBoost = currentSettings.bassBoostStrength,
                     )
                     if (isPlaying) requestFocus()
+                    publishNowPlaying()
                 }
             },
         )
@@ -242,6 +272,10 @@ class MimiPlaybackService : MediaSessionService() {
                     ) {
                         leaveGap()
                     }
+
+                    // The widget shows what is playing, so it has to be told when the
+                    // song changes rather than when the launcher next asks.
+                    publishNowPlaying()
                 }
             },
         )
@@ -602,7 +636,195 @@ class MimiPlaybackService : MediaSessionService() {
         return player
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
+        mediaSession
+
+    /**
+     * Writes down what is playing, and tells the widget about it.
+     *
+     * A widget is drawn by the system and cannot ask the player anything, so the song is
+     * written down as it changes and the widget is drawn from what was written. That is
+     * what lets the widget be right when the app is not running at all.
+     */
+    private fun publishNowPlaying() {
+        val player = mediaSession?.player ?: return
+        val item = player.currentMediaItem
+        val metadata = item?.mediaMetadata
+
+        NowPlayingStore(this).save(
+            WidgetSong(
+                mediaId = item?.mediaId.orEmpty(),
+                title = metadata?.title?.toString()?.takeIf { it.isNotBlank() } ?: "Nothing playing",
+                artist = metadata?.artist?.toString(),
+                album = metadata?.albumTitle?.toString(),
+                durationMs = player.duration,
+                playing = player.isPlaying,
+            ),
+        )
+        refreshNowPlayingWidget(this)
+    }
+
+    /**
+     * The library as a browser is shown it.
+     *
+     * The tree is answered from the songs the service already holds, so a car walking
+     * the shelves costs nothing but a walk. A browser that asks for something to be
+     * played is answered with the song it named: the app knows what it wants to play and
+     * says so itself, while a browser only knows the one song it tapped and is given
+     * the library as the queue, so that next has somewhere to go.
+     */
+    @OptIn(UnstableApi::class)
+    private inner class LibraryCallback : MediaLibraryService.Callback {
+
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<MediaItem>> = Futures.immediateFuture(
+            LibraryResult.ofItem(libraryIndex.browse().root().toMediaItem(), params),
+        )
+
+        override fun onGetChildren(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            val entries = libraryIndex.browse().childrenOf(parentId)
+            // The page is worked out in longs, because a browser asking for everything
+            // asks for a page the size of the whole library.
+            val from = (page.toLong() * pageSize).coerceIn(0L, entries.size.toLong()).toInt()
+            val items = entries.drop(from).take(pageSize.coerceAtLeast(0)).map { it.toMediaItem() }
+            return Futures.immediateFuture(LibraryResult.ofItemList(items, params))
+        }
+
+        override fun onGetItem(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            mediaId: String,
+        ): ListenableFuture<LibraryResult<MediaItem>> {
+            val item = libraryIndex.browse().entry(mediaId)?.toMediaItem()
+            return if (item == null) {
+                Futures.immediateFuture(
+                    LibraryResult.ofError<MediaItem>(LibraryResult.RESULT_ERROR_BAD_VALUE),
+                )
+            } else {
+                Futures.immediateFuture(LibraryResult.ofItem(item, null))
+            }
+        }
+
+        /**
+         * Turns what a browser asked for into something the player can start.
+         *
+         * A browser that names a song hands back an item with nothing in it but the id,
+         * because that is all it was given, so the song is looked up in the library and
+         * answered with the file behind it.
+         */
+        override fun onAddMediaItems(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>,
+        ): ListenableFuture<List<MediaItem>> {
+            if (mediaItems.none { it.localConfiguration?.uri == null }) {
+                return Futures.immediateFuture(mediaItems)
+            }
+
+            val future = SettableFuture.create<List<MediaItem>>()
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) { future.set(resolveItems(mediaItems)) }
+                } catch (throwable: Throwable) {
+                    future.setException(throwable)
+                }
+            }
+            return future
+        }
+
+        /**
+         * Gives a browser the library as the queue.
+         *
+         * The app says for itself, so it is left alone: it knows which list it meant to
+         * play. A browser only knows the one song it tapped, and is given the library so
+         * that the next button walks the songs rather than stopping at the end of one.
+         */
+        @OptIn(UnstableApi::class)
+        override fun onSetMediaItems(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long,
+        ): ListenableFuture<MediaSession.Callback.MediaItemsWithStartPosition> {
+            val future = SettableFuture.create<MediaSession.Callback.MediaItemsWithStartPosition>()
+            if (controller.packageName == packageName) {
+                if (mediaItems.none { it.localConfiguration?.uri == null }) {
+                    return Futures.immediateFuture(
+                        MediaSession.Callback.MediaItemsWithStartPosition(
+                            mediaItems,
+                            startIndex,
+                            startPositionMs,
+                        ),
+                    )
+                }
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            future.set(
+                                MediaSession.Callback.MediaItemsWithStartPosition(
+                                    resolveItems(mediaItems),
+                                    startIndex,
+                                    startPositionMs,
+                                ),
+                            )
+                        }
+                    } catch (throwable: Throwable) {
+                        future.setException(throwable)
+                    }
+                }
+                return future
+            }
+
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        if (libraryIndex.size == 0) libraryIndex.refresh()
+                        val songs: List<BrowseSong> = libraryIndex.songs()
+                        val wanted = mediaItems.firstOrNull()?.mediaId
+                        val at = songs.indexOfFirst { it.mediaId == wanted }
+                        future.set(
+                            MediaSession.Callback.MediaItemsWithStartPosition(
+                                songs.map { it.toMediaItem() },
+                                if (at >= 0) at else 0,
+                                0L,
+                            ),
+                        )
+                    }
+                } catch (throwable: Throwable) {
+                    future.setException(throwable)
+                }
+            }
+            return future
+        }
+
+        /**
+         * The items a browser asked for, with the songs behind them filled in.
+         *
+         * An item that already knows where its audio is is left exactly as it is, so the
+         * app's own list goes through untouched.
+         */
+        private suspend fun resolveItems(mediaItems: List<MediaItem>): List<MediaItem> {
+            if (libraryIndex.size == 0) libraryIndex.refresh()
+            return mediaItems.map { item ->
+                if (item.localConfiguration?.uri != null) {
+                    item
+                } else {
+                    libraryIndex.song(item.mediaId)?.toMediaItem() ?: item
+                }
+            }
+        }
+    }
 
     /** Keep playing if the app is swiped away; only shut down when nothing is playing. */
     override fun onTaskRemoved(rootIntent: Intent?) {

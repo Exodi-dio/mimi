@@ -79,6 +79,8 @@ and it is not meant to be.
 | Settings behind one drawer row: an index, eight pages, and a search that opens the page with the row in view | |
 | A What's new sheet on the About page, listing what changed in this build | |
 | Bottom tabs and home shelves reordered and hidden from the Customization page | |
+| Home screen widgets: what is playing, with play and next, and a scrollable list of the library's songs | |
+| Android Auto and other media browsers: the library browsed as songs, albums and artists, with the music played from the browser | |
 
 ## Stack
 

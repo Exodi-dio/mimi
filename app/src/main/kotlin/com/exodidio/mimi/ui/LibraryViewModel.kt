@@ -44,6 +44,7 @@ import com.exodidio.mimi.library.tracksWithoutHidden
 import com.exodidio.mimi.library.writeDocumentInTree
 import com.exodidio.mimi.library.writeDocumentText
 import com.exodidio.mimi.library.yearSummaries
+import com.exodidio.mimi.widgets.refreshWidgets
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -620,7 +621,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             _scanning.value = true
             try {
                 val result = library.refresh(force = force)
-                if (!result.skipped) _lastScanDropped.value = result.dropped
+                if (!result.skipped) {
+                    _lastScanDropped.value = result.dropped
+                    // The widgets show the library, so a rebuilt library has to reach them.
+                    refreshWidgets(application)
+                }
             } catch (_: SecurityException) {
                 // Permission revoked mid-flight; the permission gate will re-ask.
             } finally {

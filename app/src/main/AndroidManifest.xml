@@ -34,14 +34,66 @@
             </intent-filter>
         </activity>
 
-        <!-- Playback lives here so it survives the app being backgrounded. -->
+        <!-- Playback lives here so it survives the app being backgrounded. It is also
+             the session a car or another app browses, which is why it answers the
+             platform's media browser action as well as Media3's own. -->
         <service
             android:name=".playback.MimiPlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+
+        <!-- The headset buttons and the keys on a car reach the session through here. -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- The widgets on the home screen. The launcher picks them, so they are
+             exported and each one points at the layout it draws itself with. -->
+        <receiver
+            android:name=".widgets.NowPlayingWidget"
+            android:exported="true"
+            android:label="@string/widget_now_playing_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_now_playing_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.SongsListWidget"
+            android:exported="true"
+            android:label="@string/widget_songs_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_songs_list_info" />
+        </receiver>
+
+        <!-- The rows of the songs list are drawn by the launcher, which binds to this
+             service to ask for them one at a time. -->
+        <service
+            android:name=".widgets.SongsListService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- The buttons on the widgets. A pending intent is sent as the app that made
+             it, so this one is not exported. -->
+        <receiver
+            android:name=".widgets.WidgetActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

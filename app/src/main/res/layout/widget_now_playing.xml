@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget as it sits on the home screen: the cover, the name and the artist on the
+     left, and the two buttons that matter on the right. The body opens the app on the
+     player and the buttons act at once. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_now_playing_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:id="@+id/widget_now_playing_body"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/widget_now_playing_art"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:contentDescription="@string/widget_now_playing_label"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_widget_music" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_now_playing_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:textColor="@color/widget_on_background"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/widget_now_playing_artist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:maxLines="1"
+                android:textColor="@color/widget_on_background_muted"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/widget_now_playing_play"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="4dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/widget_now_playing_label"
+        android:padding="10dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_widget_play"
+        android:tint="@color/widget_on_background" />
+
+    <ImageButton
+        android:id="@+id/widget_now_playing_next"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="4dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/widget_now_playing_label"
+        android:padding="10dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_widget_next"
+        android:tint="@color/widget_on_background" />
+</LinearLayout>

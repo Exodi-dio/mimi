@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app's own cream and ink, so a widget looks like the app it came from. -->
+    <color name="widget_background">#FDF6E7</color>
+    <color name="widget_on_background">#1E1B20</color>
+    <color name="widget_on_background_muted">#5B5560</color>
+    <color name="widget_accent">#2F6FED</color>
+</resources>

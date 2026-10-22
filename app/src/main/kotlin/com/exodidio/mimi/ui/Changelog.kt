@@ -49,6 +49,10 @@ val changelogSections: List<ChangelogSection> = listOf(
             "Folders can be left out of the library without deleting anything.",
             "Library lists can be sorted, searched in place and summarised in their header.",
             "Duplicate copies of a song can be found and reviewed without deleting anything.",
+            "Two widgets for the home screen: what is playing, with play and next beside it, " +
+                "and a scrolling list of the library's songs.",
+            "The library can be browsed from a car or another app, as songs, albums and " +
+                "artists, and the music can be played from there.",
         ),
     ),
     ChangelogSection(

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MIMI</string>
+    <string name="widget_now_playing_label">Now playing</string>
+    <string name="widget_songs_label">Songs</string>
+    <string name="widget_nothing_playing">Nothing playing</string>
 </resources>
