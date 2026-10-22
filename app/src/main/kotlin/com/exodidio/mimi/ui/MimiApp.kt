@@ -162,6 +162,12 @@ private fun MimiAppContent(openPlayer: Boolean) {
         profileViewModel.avatarFile()
     }
     val homeAvatar = rememberProfileImage(profileAvatarFile, 128, pictureRevision)
+    // The banner is read for the drawer as well as for the profile page, and at the width
+    // the panel is drawn at rather than at the page's full size.
+    val profileBannerFile = remember(profile.hasBanner, pictureRevision) {
+        profileViewModel.bannerFile()
+    }
+    val homeBanner = rememberProfileImage(profileBannerFile, 800, pictureRevision)
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -439,6 +445,13 @@ private fun MimiAppContent(openPlayer: Boolean) {
                             onOpenAbout = {
                                 goFromDrawer(Screen.SettingsGroup(SettingsGroupId.ABOUT))
                             },
+                            banner = homeBanner,
+                            avatar = homeAvatar,
+                            profileName = profile.name,
+                            onOpenProfile = {
+                                closeDrawer()
+                                navigator.push(Screen.Profile)
+                            },
                             showInsights = settings.showInsights,
                         )
                     },
@@ -455,7 +468,6 @@ private fun MimiAppContent(openPlayer: Boolean) {
                                     avatar = homeAvatar,
                                     profileName = profile.name,
                                     onOpenMenu = { scope.launch { drawerState.open() } },
-                                    onOpenProfile = { navigator.push(Screen.Profile) },
                                     onTrackClick = { list, index -> playerViewModel.play(list, index) },
                                 )
 

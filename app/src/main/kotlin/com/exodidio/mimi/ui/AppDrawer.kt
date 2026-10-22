@@ -1,7 +1,9 @@
 package com.exodidio.mimi.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -16,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,8 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,15 +56,17 @@ import com.composables.icons.lucide.SlidersHorizontal
 private val DRAWER_WIDTH = 300.dp
 
 /**
- * The drawer: the places in the app, with the profile no longer one of them.
+ * The drawer: the places in the app, under the face that owns them.
  *
- * The profile moved to the top right of the home screen, so this panel is only navigation.
- * It names destinations rather than settings sections: Settings is one row, and the pages
- * behind it are found on the Settings index. That is what lets the rows stay nine plain
- * lines with counts only where a count is a useful thing to know before going there.
+ * The banner and the picture at the top are the profile, and tapping them opens the page
+ * where the name and the pictures are changed. That is why the profile is no longer a row
+ * at the bottom of the panel: it is the header rather than a destination beside the others.
  *
- * The selected row is the only one filled, and the fill is a pill rather than a rectangle,
- * so the open destination can be found without the panel looking like a list of buttons.
+ * Below it the rows are grouped by what they are for — the library, the way the sound is
+ * shaped, and the app itself — with each group spaced away from the next so nine rows read
+ * as three answers to three questions. The selected row is the only one filled, and the fill
+ * is a pill rather than a rectangle, so the open destination can be found without the panel
+ * looking like a list of buttons.
  */
 @Composable
 fun AppDrawer(
@@ -76,6 +83,10 @@ fun AppDrawer(
     onScanMedia: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAbout: () -> Unit,
+    banner: ImageBitmap?,
+    avatar: ImageBitmap?,
+    profileName: String,
+    onOpenProfile: () -> Unit,
     modifier: Modifier = Modifier,
     showInsights: Boolean = true,
 ) {
@@ -110,77 +121,81 @@ fun AppDrawer(
                     .weight(1f)
                     .verticalScroll(rememberScrollState()),
             ) {
-                Text(
-                    text = "MIMI",
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 20.dp),
+                DrawerHeader(
+                    banner = banner,
+                    avatar = avatar,
+                    name = profileName,
+                    onOpenProfile = onOpenProfile,
                 )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                DrawerRow(
-                    icon = Lucide.Library,
-                    title = "Library",
-                    count = songCount,
-                    selected = onLibrary,
-                    onClick = onOpenLibrary,
-                )
-                DrawerRow(
-                    icon = Lucide.Folder,
-                    title = "Folders",
-                    count = folderCount,
-                    selected = onFolders,
-                    onClick = onOpenFolders,
-                )
-                DrawerRow(
-                    icon = Lucide.ListMusic,
-                    title = "Playing queue",
-                    selected = queueOpen,
-                    onClick = onOpenQueue,
-                )
-                DrawerRow(
-                    icon = Lucide.SlidersHorizontal,
-                    title = "Equalizer",
-                    selected = onEqualizer,
-                    onClick = onOpenEqualizer,
-                )
-                if (showInsights) {
+                DrawerGroup {
                     DrawerRow(
-                        icon = Lucide.ChartBar,
-                        title = "Listening stats",
-                        selected = onStats,
-                        onClick = onOpenInsights,
+                        icon = Lucide.Library,
+                        title = "Library",
+                        count = songCount,
+                        selected = onLibrary,
+                        onClick = onOpenLibrary,
+                    )
+                    DrawerRow(
+                        icon = Lucide.Folder,
+                        title = "Folders",
+                        count = folderCount,
+                        selected = onFolders,
+                        onClick = onOpenFolders,
+                    )
+                    DrawerRow(
+                        icon = Lucide.ListMusic,
+                        title = "Playing queue",
+                        selected = queueOpen,
+                        onClick = onOpenQueue,
                     )
                 }
-                DrawerRow(
-                    icon = Lucide.RefreshCw,
-                    title = "Scan media",
-                    selected = false,
-                    onClick = onScanMedia,
-                )
-                DrawerRow(
-                    icon = Lucide.Settings,
-                    title = "Settings",
-                    selected = onSettings,
-                    onClick = onOpenSettings,
-                )
-                DrawerRow(
-                    icon = Lucide.Info,
-                    title = "About",
-                    selected = onAbout,
-                    onClick = onOpenAbout,
-                )
-                DrawerRow(
-                    icon = Lucide.Coffee,
-                    title = "Donate",
-                    selected = false,
-                    onClick = { showDonate = true },
-                )
+
+                DrawerGroup {
+                    DrawerRow(
+                        icon = Lucide.SlidersHorizontal,
+                        title = "Equalizer",
+                        selected = onEqualizer,
+                        onClick = onOpenEqualizer,
+                    )
+                    if (showInsights) {
+                        DrawerRow(
+                            icon = Lucide.ChartBar,
+                            title = "Listening stats",
+                            selected = onStats,
+                            onClick = onOpenInsights,
+                        )
+                    }
+                }
+
+                DrawerGroup {
+                    DrawerRow(
+                        icon = Lucide.RefreshCw,
+                        title = "Scan media",
+                        selected = false,
+                        onClick = onScanMedia,
+                    )
+                    DrawerRow(
+                        icon = Lucide.Settings,
+                        title = "Settings",
+                        selected = onSettings,
+                        onClick = onOpenSettings,
+                    )
+                    DrawerRow(
+                        icon = Lucide.Info,
+                        title = "About",
+                        selected = onAbout,
+                        onClick = onOpenAbout,
+                    )
+                    DrawerRow(
+                        icon = Lucide.Coffee,
+                        title = "Donate",
+                        selected = false,
+                        onClick = { showDonate = true },
+                    )
+                }
             }
         }
     }
@@ -199,6 +214,95 @@ fun AppDrawer(
                 TextButton(onClick = { showDonate = false }) { Text("Close") }
             },
         )
+    }
+}
+
+/** The height of the banner at the top of the drawer. */
+private val DRAWER_BANNER_HEIGHT = 140.dp
+
+/** The edge of the profile picture, half of which hangs below that banner. */
+private val DRAWER_AVATAR_SIZE = 76.dp
+
+/**
+ * The banner, the face and the name at the top of the drawer.
+ *
+ * The banner is a picture rather than a colour so the panel opens on something the listener
+ * chose, and the gradient at its foot carries it into the panel instead of ending on a hard
+ * edge. The picture is laid over that edge by half its height, which is what makes the two
+ * read as one header. The whole header is the way into the profile, because that is what it
+ * is a picture of.
+ */
+@Composable
+private fun DrawerHeader(
+    banner: ImageBitmap?,
+    avatar: ImageBitmap?,
+    name: String,
+    onOpenProfile: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpenProfile),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(DRAWER_BANNER_HEIGHT)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            if (banner != null) {
+                Image(
+                    bitmap = banner,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.45f to Color.Transparent,
+                            1f to MaterialTheme.colorScheme.surface,
+                        )
+                    ),
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(y = -(DRAWER_AVATAR_SIZE / 2))
+                .padding(horizontal = 16.dp),
+        ) {
+            ProfileAvatar(image = avatar, name = name, size = DRAWER_AVATAR_SIZE)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name.ifBlank { "Your profile" },
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "View profile",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** One group of drawer rows, spaced away from the group above and below it. */
+@Composable
+private fun DrawerGroup(content: @Composable () -> Unit) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        content()
     }
 }
 

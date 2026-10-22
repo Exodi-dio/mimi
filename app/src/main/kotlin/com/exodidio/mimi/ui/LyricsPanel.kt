@@ -2,6 +2,7 @@ package com.exodidio.mimi.ui
 
 import android.os.SystemClock
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -119,9 +120,11 @@ fun LyricsPanel(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    // Room on the right for the button, so the ends of long lines are not
-                    // hidden underneath it.
-                    .padding(top = 8.dp, bottom = 8.dp, end = 52.dp),
+                    // The same inset on both sides, because the block is centred on the
+                    // screen and a wider inset on the right pulled every line off centre.
+                    // The button floats over the top of the block instead of reserving a
+                    // column of its own.
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
             ) {
                 lyrics.lines.forEachIndexed { index, line ->
                     LyricText(
@@ -164,20 +167,34 @@ fun LyricsPanel(
             LaunchedEffect(currentIndex, viewportHeight) {
                 if (currentIndex < 0 || viewportHeight <= 0) return@LaunchedEffect
                 scrolledAway = false
-                // An estimate of the line's own height, which is enough to put the words
-                // in the middle of the block rather than a third of the way down it.
-                val lineHeight = with(density) { 44.dp.toPx() }
-                val offset = -((viewportHeight - lineHeight) / 2).toInt()
-                listState.animateScrollToItem(
-                    index = currentIndex.coerceAtMost(lyrics.lines.lastIndex),
-                    scrollOffset = offset,
-                )
+                val index = currentIndex.coerceAtMost(lyrics.lines.lastIndex)
+                // The line is brought into the window first and only then measured, so
+                // the centring is done from the height the line actually took. The
+                // estimate it replaces was a single fixed height, which put a wrapped
+                // line, or one with its reading underneath it, high or low by half the
+                // difference.
+                listState.animateScrollToItem(index)
+                withFrameNanos { }
+                val measured = listState.layoutInfo.visibleItemsInfo
+                    .firstOrNull { it.index == index }
+                if (measured != null) {
+                    val target = (viewportHeight - measured.size) / 2
+                    val delta = measured.offset - target
+                    if (delta != 0) listState.scrollBy(delta.toFloat())
+                }
             }
 
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = halfViewport, bottom = halfViewport, end = 52.dp),
+                // The same inset at both ends of the line as above, so the block is
+                // centred on the screen rather than on the space left of the button.
+                contentPadding = PaddingValues(
+                    top = halfViewport,
+                    bottom = halfViewport,
+                    start = 24.dp,
+                    end = 24.dp,
+                ),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 itemsIndexed(lyrics.lines) { index, line ->

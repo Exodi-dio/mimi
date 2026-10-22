@@ -1,6 +1,9 @@
 package com.exodidio.mimi.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -58,6 +61,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -100,9 +104,10 @@ import kotlin.math.abs
  * bottom navigation is not drawn while this is up: the player takes the whole screen and
  * the row at the bottom belongs to the song rather than to the app.
  *
- * The cover is not shown while there are words to read. It takes the place of the words
- * when the song has none, and a tap on it opens it full screen, which is the only way
- * the artwork is seen at full size now that the artwork face is gone.
+ * The cover sits above the words at roughly two fifths of the screen's height. It takes the
+ * place of nothing: the words keep their block underneath it, and the cover fades from one
+ * song to the next rather than changing in place. A tap on it opens it full screen, which
+ * is the only way the artwork is seen at full size now that the artwork face is gone.
  *
  * The queue moved behind the queue button, since a face that had to be swiped to was a
  * face that was never found. The sideways swipe over the words still works and reaches
@@ -155,12 +160,18 @@ fun NowPlayingScreen(
     val settings = LocalSettings.current
     val formatLine = rememberSongFormatLine(current?.mediaId)
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    // The cover is measured against the screen rather than against the space left over by
+    // the words, because the request is a share of the screen: an area that shrank as the
+    // words grew would draw a different cover on every song.
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val coverSide = minOf(maxWidth - 48.dp, maxHeight * COVER_HEIGHT_FRACTION)
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         // A slim header: a way out on the left and the menu on the right. Nothing else,
         // because the song's own name is the title and it sits further down the screen.
         Row(
@@ -249,28 +260,39 @@ fun NowPlayingScreen(
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
-                    when (val lyrics = lyricsState) {
-                        is LyricsState.Found -> LyricsPanel(
-                            lyrics = lyrics.lyrics,
-                            positionMs = state.positionMs,
-                            onSeek = onSeek,
-                            isPlaying = state.isPlaying,
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                    // The cover sits above the words and takes the same share of the
+                    // screen whatever the song carries, so a song with no words does not
+                    // suddenly get a bigger cover than the one before it. It is capped to
+                    // the space this area can give without squeezing the words out.
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val side = minOf(coverSide, maxHeight * COVER_MAX_SHARE_OF_WORDS)
 
-                        LyricsState.Loading -> LyricsMessage("Looking for lyrics\u2026")
-
-                        LyricsState.None -> Column(
+                        Column(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            AlbumArtwork(
-                                mediaId = current?.mediaId,
-                                modifier = Modifier.fillMaxWidth(0.62f),
-                            )
-                            Spacer(Modifier.height(20.dp))
-                            MissingLyrics()
+                            SongCover(mediaId = current?.mediaId, side = side)
+                            Spacer(Modifier.height(8.dp))
+
+                            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                when (val lyrics = lyricsState) {
+                                    is LyricsState.Found -> LyricsPanel(
+                                        lyrics = lyrics.lyrics,
+                                        positionMs = state.positionMs,
+                                        onSeek = onSeek,
+                                        isPlaying = state.isPlaying,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+
+                                    LyricsState.Loading -> LyricsMessage("Looking for lyrics\u2026")
+
+                                    // The cover is already above, so this only has to say
+                                    // that there is nothing to read beneath it.
+                                    LyricsState.None -> MissingLyrics(
+                                        modifier = Modifier.align(Alignment.Center),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -450,6 +472,7 @@ fun NowPlayingScreen(
                     },
                 )
             }
+        }
         }
     }
 
@@ -791,6 +814,41 @@ private fun repeatDescription(mode: RepeatMode): String = when (mode) {
     RepeatMode.OFF -> "Repeat off"
     RepeatMode.ALL -> "Repeat all"
     RepeatMode.ONE -> "Repeat one"
+}
+
+/** The share of the screen height the cover asks for. */
+private val COVER_HEIGHT_FRACTION = 0.44f
+
+/**
+ * The most of the words' area the cover may take.
+ *
+ * On a short screen a cover at its full share would leave the words a line or two, which
+ * is not enough to read along with. The words win that argument, so the cover gives way
+ * until they have room.
+ */
+private const val COVER_MAX_SHARE_OF_WORDS = 0.62f
+
+/** How long the cover takes to cross from one song to the next. */
+private const val COVER_FADE_MS = 320
+
+/**
+ * The cover, faded from one song to the next.
+ *
+ * The fade is what keeps the change of song from reading as a flicker: the previous cover
+ * is still there when the next one starts decoding, and the two cross rather than one
+ * being removed before the other exists.
+ */
+@Composable
+private fun SongCover(mediaId: String?, side: Dp) {
+    AnimatedContent(
+        targetState = mediaId,
+        transitionSpec = {
+            fadeIn(tween(COVER_FADE_MS)) togetherWith fadeOut(tween(COVER_FADE_MS))
+        },
+        label = "cover",
+    ) { id ->
+        AlbumArtwork(mediaId = id, modifier = Modifier.size(side))
+    }
 }
 
 /**

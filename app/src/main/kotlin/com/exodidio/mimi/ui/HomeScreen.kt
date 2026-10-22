@@ -40,9 +40,8 @@ import com.exodidio.mimi.library.homeRowsIn
  * was I just listening to, what do I actually like, and what have I marked myself.
  *
  * The menu and the profile sit on the same line as the title, because both are about the
- * app rather than about the music: the menu opens navigation, and the face opens the page
- * where the name and pictures are changed. Keeping the profile here rather than in the
- * bottom bar is what gave the navigation its four real destinations back.
+ * app rather than about the music: either one opens the drawer, and the drawer's header is
+ * the profile.
  *
  * The shelves are drawn in [homeRowsIn] order and only when they hold something, so hiding
  * one, moving one, or having nothing to put in it all leave a screen that still reads.
@@ -55,7 +54,6 @@ fun HomeScreen(
     loved: List<Track>,
     onTrackClick: (List<Track>, Int) -> Unit,
     onOpenMenu: () -> Unit,
-    onOpenProfile: () -> Unit,
     avatar: ImageBitmap?,
     profileName: String,
     modifier: Modifier = Modifier,
@@ -79,7 +77,6 @@ fun HomeScreen(
             avatar = avatar,
             profileName = profileName,
             onOpenMenu = onOpenMenu,
-            onOpenProfile = onOpenProfile,
         )
 
         if (!hasLibrary) {
@@ -115,17 +112,17 @@ fun HomeScreen(
 }
 
 /**
- * The title, the way into navigation, and the face that opens the profile.
+ * The title, the way into navigation, and the face that opens it.
  *
- * The menu mark is drawn rather than imported so the header keeps its size whatever the
- * icon set calls a hamburger, and so the two lines have the same weight as the type.
+ * Both the menu mark and the face open the drawer, because the profile now lives in the
+ * drawer's header rather than on a page of its own: the face is the top of that panel, and
+ * tapping it here should take the listener where that panel is.
  */
 @Composable
 private fun HomeHeader(
     avatar: ImageBitmap?,
     profileName: String,
     onOpenMenu: () -> Unit,
-    onOpenProfile: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -158,7 +155,7 @@ private fun HomeHeader(
         Box(
             modifier = Modifier
                 .padding(end = 4.dp)
-                .clickable(onClick = onOpenProfile),
+                .clickable(onClick = onOpenMenu),
         ) {
             ProfileAvatar(
                 image = avatar,
