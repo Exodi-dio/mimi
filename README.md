@@ -39,7 +39,8 @@ and it is not meant to be.
 | Keep the queue as a playlist | |
 | Equaliser with a switch and seven presets, spread across however many bands the device has | |
 | A bass boost with a subsonic filter and a preamp trim, so the weight cannot clip the rest of the mix | |
-| Crossfade: the end of one track is faded down under the start of the next, over 3, 6, 9 or 12 seconds | The fade on play and pause, which is remembered but not applied |
+| Crossfade: the end of one track is faded down under the start of the next, over 3, 6, 9 or 12 seconds | |
+| A fade on play and pause, over a quarter, half, three quarters or a whole second, multiplied into the level the crossfade, the sleep timer and the ducking already share | |
 | ReplayGain read from the file's own tags, by track or by album, with a preamp of your own | |
 | Gapless playback that can be turned off, which leaves a short silence between the tracks | |
 | Lyrics read out of the files themselves, timed or not | |

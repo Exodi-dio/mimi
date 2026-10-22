@@ -26,6 +26,8 @@ val changelogSections: List<ChangelogSection> = listOf(
             "ReplayGain is read from the file's own tags, by track or by album, with a " +
                 "preamp of your own.",
             "Tracks can be crossfaded, so the end of one fades down under the start of the next.",
+            "The music fades in when it resumes and fades out before it pauses, by an amount " +
+                "you choose instead of a cut.",
             "A bass boost with a subsonic filter and a trim, so the weight cannot clip the " +
                 "rest of the mix.",
             "Gapless playback can be turned off, which leaves a short silence between the tracks.",

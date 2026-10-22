@@ -10,9 +10,11 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.Uri
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes as Media3AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -59,13 +61,48 @@ import kotlinx.coroutines.withContext
  * ends at silence rather than jumping back to full volume.
  *
  * The level of the music is worked out in one place, and everything that has a say in it
- * multiplies together: the sleep timer's fade, the ducking, the ReplayGain of the file
- * and the ramp of a crossfade. None of them can undo another, and the one that is
- * quieter at the moment is the one that is heard.
+ * multiplies together: the sleep timer's fade, the ducking, the ramp of a crossfade, the
+ * ramp of a play or pause, and the level the file's own tags ask for. None of them can
+ * undo another, and the one that is quieter at the moment is the one that is heard.
+ *
+ * A play and a pause are slowed down here rather than in the player, because a pause the
+ * player has already carried out is a pause whose last syllable has already been cut off.
+ * The session talks to a player that takes the level down before it pauses, and brings it
+ * up after it plays, so a controller, a notification or a headset all get the same fade.
  */
 class MimiPlaybackService : MediaLibraryService() {
 
     private var mediaSession: MediaLibrarySession? = null
+
+    /**
+     * The player the session wraps.
+     *
+     * Kept beside the session because the fade has to reach the real player to begin and
+     * to stop playing, while everything a controller asks for goes through the wrapper.
+     */
+    private var rawPlayer: ExoPlayer? = null
+
+    /**
+     * How loud the play and pause ramp says the music is, from nothing to full.
+     *
+     * One unless a ramp is running, which is the same as not touching the level at all.
+     */
+    private var playPauseVolume = 1f
+
+    /** The level the ramp in flight is heading for, so a reversal knows which way it went. */
+    private var playPauseTarget = 1f
+
+    /** The ramp in flight, so that a second tap can call it off. */
+    private var playPauseRamp: Job? = null
+
+    /**
+     * True when a play has been started but the music has not begun to sound yet.
+     *
+     * The ramp up belongs where the sound starts, not where the command was given: a
+     * file that takes a moment to buffer would otherwise finish its fade in silence and
+     * arrive at full volume with a click, which is the one thing the fade is for.
+     */
+    private var resumeRampPending = false
 
     /**
      * The library as a browser sees it.
@@ -192,8 +229,12 @@ class MimiPlaybackService : MediaLibraryService() {
             // Focus is requested by this service so it can duck instead of stopping.
             .setAudioAttributes(attributes, /* handleAudioFocus = */ false)
             .build()
+        rawPlayer = player
 
-        mediaSession = MediaLibrarySession.Builder(this, player, LibraryCallback()).build()
+        // The session is handed a player that fades on the way in and out of a pause.
+        // Everything else it asks for is forwarded untouched.
+        mediaSession = MediaLibrarySession.Builder(this, FadedPlayer(player), LibraryCallback())
+            .build()
 
         // The library is watched rather than read on demand: a browser asks for the
         // shelves from a binder, and the answer cannot wait for a database read.
@@ -227,7 +268,10 @@ class MimiPlaybackService : MediaLibraryService() {
                         curve = currentSettings.equalizerProfile,
                         bassBoost = currentSettings.bassBoostStrength,
                     )
-                    if (isPlaying) requestFocus()
+                    if (isPlaying) {
+                        requestFocus()
+                        startResumeRamp()
+                    }
                     publishNowPlaying()
                 }
             },
@@ -385,9 +429,10 @@ class MimiPlaybackService : MediaLibraryService() {
     /**
      * The level of every player, from every source that has a say in it.
      *
-     * The sleep timer's fade, the ducking under a notification, the ReplayGain of the
-     * file and the ramp of a crossfade all multiply together, so none of them can undo
-     * another. The result is never louder than the loudest.
+     * The sleep timer's fade, the ducking under a notification, the silence of a gap,
+     * the ramp of a play or pause, the ReplayGain of the file and the ramp of a crossfade
+     * all multiply together, so none of them can undo another. The result is never louder
+     * than the loudest.
      */
     private fun applyVolumes() {
         val player = mediaSession?.player ?: return
@@ -406,7 +451,8 @@ class MimiPlaybackService : MediaLibraryService() {
      * and the chain cannot be pushed into clipping.
      */
     private fun baseVolume(scale: Float): Float =
-        (fadeVolume * focusVolume * gapVolume * scale * bassTrim()).coerceIn(0f, 1f)
+        (fadeVolume * focusVolume * gapVolume * playPauseVolume * scale * bassTrim())
+            .coerceIn(0f, 1f)
 
     /**
      * The level the bass boost leaves behind, as a fraction of the level it started with.
@@ -414,6 +460,184 @@ class MimiPlaybackService : MediaLibraryService() {
      * One when the boost is off, so nothing is taken off in that case.
      */
     private fun bassTrim(): Float = bassBoostTrimScale(currentSettings.bassBoostStrength)
+
+    /**
+     * Starts playing, bringing the level up rather than letting it arrive at full.
+     *
+     * The player is started after the level has been taken to nothing, so the first
+     * sample is already quiet: setting the volume afterwards would let a click through.
+     * A fade of zero, or a level that already belongs to someone else, keeps the old
+     * instant behaviour rather than starting a ramp that would fight it.
+     */
+    private fun requestPlay() {
+        val player = rawPlayer ?: return
+
+        if (player.playWhenReady) {
+            // A pause that is still ramping down is called back here. The sound never
+            // stopped, so the level is brought back up instead of the pause landing.
+            if (playPauseRamp?.isActive == true && playPauseTarget < 1f) {
+                if (levelBelongsToAnotherRamp()) {
+                    endPlayPauseRamp()
+                } else {
+                    rampTo(1f, currentSettings.fadeOnPlayPauseMs, null)
+                }
+            }
+            return
+        }
+
+        val duration = currentSettings.fadeOnPlayPauseMs
+        if (duration <= 0 || levelBelongsToAnotherRamp()) {
+            endPlayPauseRamp()
+            player.play()
+            return
+        }
+
+        playPauseVolume = 0f
+        applyVolumes()
+        // The ramp itself starts when the player reports that it is playing, so a file
+        // that buffers for a moment still fades in rather than fading before it is heard.
+        resumeRampPending = true
+        player.play()
+        if (player.isPlaying) startResumeRamp()
+    }
+
+    /**
+     * Starts the ramp up, if a play is waiting for the music to begin.
+     *
+     * Called when the player reports that it is playing, and harmless otherwise, so a
+     * buffer that stalls and comes back cannot start a second fade.
+     */
+    private fun startResumeRamp() {
+        if (!resumeRampPending) return
+        resumeRampPending = false
+        if (levelBelongsToAnotherRamp()) {
+            playPauseVolume = 1f
+            applyVolumes()
+            return
+        }
+        rampTo(1f, currentSettings.fadeOnPlayPauseMs, null)
+    }
+
+    /**
+     * Pauses, taking the level down first so the last syllable is not cut in half.
+     *
+     * The player is only paused once the ramp has reached nothing, which is why the
+     * transport keeps saying it is playing for the length of the fade. A fade of zero,
+     * or a level already being taken down by the sleep timer, the ducking or a
+     * crossfade, pauses at once rather than adding a second ramp on top of the first.
+     */
+    private fun requestPause() {
+        val player = rawPlayer ?: return
+
+        if (!player.playWhenReady) {
+            endPlayPauseRamp()
+            player.pause()
+            return
+        }
+
+        // A pause while the two tracks overlap ends the overlap: left running, its
+        // handover would start the next track by itself a moment after the pause.
+        if (crossfadeJob?.isActive == true) {
+            stopCrossfade()
+            endPlayPauseRamp()
+            player.pause()
+            return
+        }
+
+        // A second pause while the first is already taking the level down finishes the
+        // job at once, so tapping twice cannot stretch the fade or leave it half way.
+        if (playPauseRamp?.isActive == true && playPauseTarget < 1f) {
+            endPlayPauseRamp()
+            player.pause()
+            return
+        }
+
+        val duration = currentSettings.fadeOnPlayPauseMs
+        if (duration <= 0 || levelBelongsToAnotherRamp() || playPauseVolume <= 0f) {
+            endPlayPauseRamp()
+            player.pause()
+            return
+        }
+
+        rampTo(0f, duration) {
+            // The level goes back to one once the player is stopped, so the next play
+            // starts from its own ramp rather than from whatever this one reached.
+            player.pause()
+            playPauseTarget = 1f
+            playPauseVolume = 1f
+            applyVolumes()
+        }
+    }
+
+    /**
+     * True while the sleep timer, the ducking or a crossfade owns the level.
+     *
+     * Those three already take the music down on their own, and a play or pause ramp
+     * starting beside them would be two answers to one question: the volume would be
+     * pulled two ways at once, and whichever finished first would win by accident.
+     */
+    private fun levelBelongsToAnotherRamp(): Boolean =
+        fadeVolume < 1f || focusVolume < 1f || crossfadeJob?.isActive == true
+
+    /**
+     * Moves the play and pause level to [target] over [durationMs].
+     *
+     * The ramp starts from wherever the level is, not from the end it would have reached,
+     * so tapping play during a fade out turns the sound round from where it is. The work
+     * is done in small steps because the player has no ramp of its own: each step puts
+     * one more factor into the level that [applyVolumes] already multiplies.
+     */
+    private fun rampTo(target: Float, durationMs: Int, then: (() -> Unit)?) {
+        playPauseRamp?.cancel()
+        playPauseTarget = target
+        val ramp = VolumeRamp(durationMs, playPauseVolume, target)
+        playPauseRamp = scope.launch {
+            val begun = SystemClock.elapsedRealtime()
+            while (true) {
+                val elapsed = SystemClock.elapsedRealtime() - begun
+                playPauseVolume = ramp.levelAt(elapsed)
+                applyVolumes()
+                if (ramp.finished(elapsed)) break
+                delay(PLAY_PAUSE_STEP_MS)
+            }
+            then?.invoke()
+        }
+    }
+
+    /**
+     * Calls a ramp off and puts the level back to one.
+     *
+     * A ramp that is cancelled on its way to a pause leaves the level part way down, and
+     * a player that is then paused by hand would be left at that level for the next play.
+     * Putting it back here is what stops a rapid tap from keeping half the volume.
+     */
+    private fun endPlayPauseRamp() {
+        playPauseRamp?.cancel()
+        playPauseRamp = null
+        playPauseTarget = 1f
+        playPauseVolume = 1f
+        resumeRampPending = false
+        applyVolumes()
+    }
+
+    /**
+     * The player the session hands to controllers.
+     *
+     * A pause is not refused here, it is only late: the level is taken down first and the
+     * player is paused when it reaches nothing. Everything else, from a seek to a queue
+     * change, is forwarded as it always was, because only the two transport commands have
+     * a sound to smooth.
+     */
+    @OptIn(UnstableApi::class)
+    private inner class FadedPlayer(player: ExoPlayer) : ForwardingPlayer(player) {
+        override fun play() = requestPlay()
+
+        override fun pause() = requestPause()
+
+        override fun setPlayWhenReady(playWhenReady: Boolean) {
+            if (playWhenReady) requestPlay() else requestPause()
+        }
+    }
 
     /**
      * The ReplayGain level of a track, when its tags have been read.
@@ -875,6 +1099,14 @@ class MimiPlaybackService : MediaLibraryService() {
 
         /** How often the level moves while the two tracks are on top of each other. */
         const val CROSSFADE_STEP_MS = 50L
+
+        /**
+         * How often a play or pause ramp moves.
+         *
+         * Short enough that a fade of 250 ms is not two audible steps, long enough that
+         * a fade of a second does not wake the main thread fifty times over.
+         */
+        const val PLAY_PAUSE_STEP_MS = 20L
 
         /** How long the track coming up is brought back up after the handover. */
         const val CROSSFADE_FADE_IN_MS = 150L

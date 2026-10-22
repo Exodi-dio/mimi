@@ -247,7 +247,8 @@ val settingsCatalog: List<SettingEntry> = listOf(
         group = SettingsGroupId.AUDIO,
         section = "PLAYBACK",
         title = "Fade music on play / pause",
-        subtitle = "Smooth fade in/out instead of cutting abruptly.",
+        subtitle = "Resuming comes up from silence and pausing goes down to it over this " +
+            "length, instead of cutting the sound.",
         keywords = listOf("fade", "pause", "play", "volume", "smooth", "ramp"),
         badge = "BETA",
     ),
@@ -266,9 +267,9 @@ val settingsCatalog: List<SettingEntry> = listOf(
         section = "PLAYBACK",
         title = "About fade and crossfade",
         subtitle = "The crossfade really overlaps: the track that is ending is faded down " +
-            "while the next one comes up over it. The fade on play and pause is still " +
-            "remembered but not applied.",
-        keywords = listOf("fade", "crossfade", "not applied", "beta", "gap"),
+            "while the next one comes up over it. The fade on play and pause is another " +
+            "factor on the same level, so the two cannot undo each other.",
+        keywords = listOf("fade", "crossfade", "overlap", "beta", "gap"),
         note = true,
     ),
     SettingEntry(
