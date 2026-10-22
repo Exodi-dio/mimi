@@ -65,7 +65,7 @@ import kotlin.math.roundToInt
  */
 
 /** The rounding a settings card has at its corners, which is what makes it read as one card. */
-private val CardShape = RoundedCornerShape(24.dp)
+private val CardShape = RoundedCornerShape(12.dp)
 
 /** How far a card is inset from the edges of the screen. */
 private val CardInset = 16.dp

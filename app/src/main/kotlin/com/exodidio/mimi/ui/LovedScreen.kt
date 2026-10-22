@@ -124,7 +124,6 @@ fun LovedScreen(
                         onAddToQueue = { onAddToQueue(track) },
                         onAddToPlaylist = { onAddToPlaylist(track) },
                     )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }

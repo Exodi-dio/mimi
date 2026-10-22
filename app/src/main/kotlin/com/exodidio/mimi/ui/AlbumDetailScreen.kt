@@ -1,13 +1,16 @@
 package com.exodidio.mimi.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -16,7 +19,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,8 +34,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.composables.icons.lucide.Ellipsis
@@ -93,9 +100,8 @@ fun AlbumDetailScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        ScreenHeader(
+        BarHeader(
             title = title,
-            subtitle = headerSubtitle,
             onBack = onBack,
             trailing = {
                 Row {
@@ -151,37 +157,103 @@ fun AlbumDetailScreen(
             )
         }
 
-        Row(
+        // The record's own face, large and centred, with its foot fading into the page
+        // so the title beneath it reads as part of the same object rather than as a
+        // caption stuck under a picture.
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(top = 8.dp, bottom = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Artwork(
-                bitmap = rememberAlbumArt(
-                    tracks.firstOrNull()?.contentUri,
-                    targetPx = 512,
-                    albumId = albumId,
-                ),
-                modifier = Modifier.size(120.dp),
-                shape = RoundedCornerShape(8.dp),
-                iconSize = 40.dp,
-            )
-            Spacer(modifier = Modifier.width(20.dp))
-            FilledTonalButton(onClick = { onPlay(shown, 0) }, enabled = shown.isNotEmpty()) {
-                Icon(imageVector = Lucide.Play, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Play")
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.66f)
+                    .aspectRatio(1f),
+            ) {
+                Artwork(
+                    bitmap = rememberAlbumArt(
+                        tracks.firstOrNull()?.contentUri,
+                        targetPx = 512,
+                        albumId = albumId,
+                    ),
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(8.dp),
+                    iconSize = 48.dp,
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                1f to MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                            )
+                        ),
+                )
             }
-            if (onShuffle != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                OutlinedButton(
-                    onClick = { onShuffle(shown) },
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+            if (artist != null) {
+                Text(
+                    text = artist,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp),
+                )
+            }
+            Text(
+                text = headerSubtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                if (onShuffle != null) {
+                    FilledIconButton(
+                        onClick = { onShuffle(shown) },
+                        enabled = shown.isNotEmpty(),
+                        modifier = Modifier.size(44.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = Lucide.Shuffle,
+                            contentDescription = "Shuffle",
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+                FilledIconButton(
+                    onClick = { onPlay(shown, 0) },
                     enabled = shown.isNotEmpty(),
+                    modifier = Modifier.size(52.dp),
                 ) {
-                    Icon(imageVector = Lucide.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Shuffle")
+                    Icon(
+                        imageVector = Lucide.Play,
+                        contentDescription = "Play",
+                        modifier = Modifier.size(24.dp),
+                    )
                 }
             }
         }
@@ -217,8 +289,8 @@ fun AlbumDetailScreen(
                     onPlayNext = { onPlayNext(track) },
                     onAddToQueue = { onAddToQueue(track) },
                     onAddToPlaylist = { onAddToPlaylist(track) },
+                    number = index + 1,
                 )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }

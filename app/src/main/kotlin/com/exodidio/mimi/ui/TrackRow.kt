@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
@@ -74,6 +75,7 @@ fun TrackRow(
     onRemoveFromPlaylist: (() -> Unit)? = null,
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
+    number: Int? = null,
 ) {
     // Songs that name no album share the "unknown album" id, so they key on the file
     // itself rather than on an album they do not have.
@@ -105,9 +107,20 @@ fun TrackRow(
                         Color.Transparent
                     }
                 )
-                .padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (number != null) {
+                // A record's running order, which is part of what the record is.
+                Text(
+                    text = number.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(22.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             if (selected) {
                 // Picking is a mode, so it has to be visible on the row itself rather than
                 // only in the bar above the list.
@@ -127,8 +140,8 @@ fun TrackRow(
                         cacheKey = artKey,
                         albumId = track.albumId,
                     ),
-                    modifier = Modifier.size(44.dp),
-                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.size(48.dp),
+                    shape = RoundedCornerShape(6.dp),
                     iconSize = 20.dp,
                 )
                 Spacer(modifier = Modifier.width(12.dp))

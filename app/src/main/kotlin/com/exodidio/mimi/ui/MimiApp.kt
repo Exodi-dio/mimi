@@ -39,6 +39,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Search
 import com.exodidio.mimi.library.BottomTabId
+import com.exodidio.mimi.library.HomeRowId
 import com.exodidio.mimi.library.PlaylistSummary
 import com.exodidio.mimi.library.Profile
 import com.exodidio.mimi.library.RestoreOutcome
@@ -469,6 +470,14 @@ private fun MimiAppContent(openPlayer: Boolean) {
                                     profileName = profile.name,
                                     onOpenMenu = { scope.launch { drawerState.open() } },
                                     onTrackClick = { list, index -> playerViewModel.play(list, index) },
+                                    onSeeAll = { row ->
+                                        if (row == HomeRowId.LOVED) {
+                                            navigator.selectTab(Screen.Loved)
+                                        } else {
+                                            navigator.librarySection = LibrarySection.SONGS
+                                            navigator.selectTab(Screen.Library)
+                                        }
+                                    },
                                 )
 
                                 Screen.Library -> LibraryHome(
@@ -894,25 +903,21 @@ private fun MimiAppContent(openPlayer: Boolean) {
                             )
                         }
 
-                        NavigationBar {
-                            bottomTabsIn(
+                        BottomTabs(
+                            selected = navigator.rootTab,
+                            tabs = bottomTabsIn(
                                 order = settings.bottomTabOrder,
                                 hidden = settings.hiddenBottomTabs,
-                            ).forEach { tab ->
-                                val destination = tabScreen(tab)
-                                NavigationBarItem(
-                                    selected = navigator.rootTab == destination,
-                                    onClick = { navigator.selectTab(destination) },
-                                    icon = {
-                                        Icon(
-                                            imageVector = tabIcon(tab),
-                                            contentDescription = null,
-                                        )
-                                    },
-                                    label = { Text(tab.label) },
-                                )
-                            }
-                        }
+                            ),
+                            avatar = homeAvatar,
+                            profileName = profile.name,
+                            onSelect = navigator::selectTab,
+                            onProfile = {
+                                if (navigator.current != Screen.Profile) {
+                                    navigator.push(Screen.Profile)
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -1262,27 +1267,7 @@ private fun LibraryHome(
     }
 }
 
-/**
- * Where a bottom tab goes, and what it is drawn with.
- *
- * The stored order holds names so a tab added in a later version can be appended to an
- * order written before it existed; these two functions are the only place a name becomes a
- * screen or an icon. A tab has no state of its own: everything it needs is either in
- * [BottomTabId] or in the screen it opens.
- */
-private fun tabScreen(tab: BottomTabId): Screen = when (tab) {
-    BottomTabId.HOME -> Screen.Home
-    BottomTabId.LIBRARY -> Screen.Library
-    BottomTabId.LOVED -> Screen.Loved
-    BottomTabId.SEARCH -> Screen.Search
-}
-
-private fun tabIcon(tab: BottomTabId): ImageVector = when (tab) {
-    BottomTabId.HOME -> Lucide.House
-    BottomTabId.LIBRARY -> Lucide.Music
-    BottomTabId.LOVED -> Lucide.Heart
-    BottomTabId.SEARCH -> Lucide.Search
-}
+// tabScreen and tabIcon live beside the bar they draw, in BottomTabs.kt.
 
 /**
  * How long the app waits for the song to come back before it gives up on the player.

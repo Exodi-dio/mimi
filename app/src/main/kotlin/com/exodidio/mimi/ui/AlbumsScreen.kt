@@ -62,12 +62,12 @@ fun AlbumsScreen(
             EmptyLibraryMessage(scanning, modifier = Modifier.weight(1f))
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 148.dp),
+                columns = GridCells.Fixed(2),
                 state = gridState,
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 itemsIndexed(albums, key = { _, album -> album.albumId }) { _, album ->
                     AlbumCell(album = album, onClick = { onAlbumClick(album) })

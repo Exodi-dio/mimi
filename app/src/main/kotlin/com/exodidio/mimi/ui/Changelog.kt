@@ -23,6 +23,18 @@ val changelogSections: List<ChangelogSection> = listOf(
     ChangelogSection(
         label = "New",
         entries = listOf(
+            "The app has been redrawn in the Apple Music shape: black pages, cards and " +
+                "sheets one step up, a translucent bottom bar with the profile as its " +
+                "fifth item, and one warm accent for the play button, the progress and a " +
+                "loved heart.",
+            "Top-level screens open on a large title that gives way to a centred bar title " +
+                "as the list moves, with their actions on the same line.",
+            "Home is a page of shelves with a See all beside each heading; albums open as a " +
+                "two-column grid, and a record opens on large centred artwork with its " +
+                "tracks numbered beneath.",
+            "The drawer opens under the banner and the profile picture, and the header " +
+                "itself opens the profile.",
+            "The now playing screen shows the cover again, large above the words.",
             "ReplayGain is read from the file's own tags, by track or by album, with a " +
                 "preamp of your own.",
             "Tracks can be crossfaded, so the end of one fades down under the start of the next.",

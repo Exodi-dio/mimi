@@ -100,7 +100,7 @@ fun ArtistDetailScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        ScreenHeader(
+        BarHeader(
             title = artist,
             subtitle = summary,
             onBack = onBack,
@@ -227,7 +227,6 @@ fun ArtistDetailScreen(
                     onAddToQueue = { onAddToQueue(track) },
                     onAddToPlaylist = { onAddToPlaylist(track) },
                 )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }

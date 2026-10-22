@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,10 +54,14 @@ fun MiniPlayer(
     val current = state.current ?: return
     val artwork = rememberAlbumArt(current.mediaId, targetPx = 128)
 
-    Surface(modifier = modifier.fillMaxWidth(), tonalElevation = 3.dp) {
-        Column {
-            HorizontalDivider()
-
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(modifier = Modifier.clip(RoundedCornerShape(12.dp))) {
             // How far in the song is, before the song itself. A strip this short has no room
             // for a scrubber, and a listener glancing at it wants to know whether to bother
             // opening it rather than to move the playhead.
@@ -68,7 +71,7 @@ fun MiniPlayer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(2.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.20f)),
                 ) {
                     Box(
                         modifier = Modifier
@@ -89,8 +92,8 @@ fun MiniPlayer(
                 Box(
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.20f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (artwork != null) {

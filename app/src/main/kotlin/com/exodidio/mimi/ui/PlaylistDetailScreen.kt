@@ -62,7 +62,7 @@ fun PlaylistDetailScreen(
         .collectAsStateWithLifecycle(initialValue = emptyList<Track>())
 
     Column(modifier = modifier.fillMaxSize()) {
-        ScreenHeader(
+        BarHeader(
             title = name,
             subtitle = songSummaryLabel(tracks.size, totalDurationMs(tracks)),
             onBack = onBack,
@@ -161,8 +161,7 @@ fun PlaylistDetailScreen(
                             null
                         },
                     )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
+                    }
             }
         }
     }

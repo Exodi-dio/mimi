@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
@@ -24,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +60,7 @@ fun HomeScreen(
     profileName: String,
     modifier: Modifier = Modifier,
     hasLibrary: Boolean = true,
+    onSeeAll: (HomeRowId) -> Unit = {},
 ) {
     val settings = LocalSettings.current
     val byRow = mapOf(
@@ -71,12 +74,39 @@ fun HomeScreen(
             val tracks = byRow[row].orEmpty()
             if (tracks.isEmpty()) null else row to tracks
         }
+    val listState = rememberLazyListState()
 
     Column(modifier = modifier.fillMaxSize()) {
-        HomeHeader(
-            avatar = avatar,
-            profileName = profileName,
-            onOpenMenu = onOpenMenu,
+        CollapsingHeader(
+            title = "Home",
+            listState = listState,
+            subtitle = profileName.ifBlank { null },
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onOpenMenu) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            repeat(3) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(18.dp)
+                                        .height(2.dp)
+                                        .background(MaterialTheme.colorScheme.onSurface),
+                                )
+                            }
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .clickable(onClick = onOpenMenu),
+                    ) {
+                        ProfileAvatar(image = avatar, name = profileName, size = 32.dp)
+                    }
+                }
+            },
         )
 
         if (!hasLibrary) {
@@ -96,12 +126,13 @@ fun HomeScreen(
         }
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(bottom = 24.dp, top = 4.dp),
         ) {
             shelves.forEach { (row, tracks) ->
                 item(key = "title:${row.name}") {
-                    ListSectionTitle(row.title)
+                    SectionShelfTitle(title = row.title, onSeeAll = { onSeeAll(row) })
                 }
                 item(key = "strip:${row.name}") {
                     TrackStrip(tracks = tracks, onTrackClick = onTrackClick)
@@ -112,57 +143,32 @@ fun HomeScreen(
 }
 
 /**
- * The title, the way into navigation, and the face that opens it.
+ * A shelf heading with the way to the whole of what it is a shelf of.
  *
- * Both the menu mark and the face open the drawer, because the profile now lives in the
- * drawer's header rather than on a page of its own: the face is the top of that panel, and
- * tapping it here should take the listener where that panel is.
+ * "See all" is drawn in the accent so it reads as the one thing on the line that does
+ * something, rather than as another label.
  */
 @Composable
-private fun HomeHeader(
-    avatar: ImageBitmap?,
-    profileName: String,
-    onOpenMenu: () -> Unit,
-) {
+private fun SectionShelfTitle(title: String, onSeeAll: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 4.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp),
     ) {
-        IconButton(onClick = onOpenMenu) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                repeat(3) {
-                    Box(
-                        modifier = Modifier
-                            .width(18.dp)
-                            .height(2.dp)
-                            .background(MaterialTheme.colorScheme.onSurface),
-                    )
-                }
-            }
-        }
-
         Text(
-            text = "Home",
-            style = MaterialTheme.typography.headlineMedium,
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
-
-        Box(
+        Text(
+            text = "See all",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
-                .padding(end = 4.dp)
-                .clickable(onClick = onOpenMenu),
-        ) {
-            ProfileAvatar(
-                image = avatar,
-                name = profileName,
-                size = 38.dp,
-            )
-        }
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onSeeAll)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+        )
     }
 }
 

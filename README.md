@@ -8,16 +8,15 @@ happens one song at a time, when you ask. Nothing else touches the network.
 
 ## Status
 
-**Beta.** The engine works and the feature surface is in place ahead of the visual
-pass, on purpose: every screen was built and made to work while the app was still
-plain, so the skin now has something finished to redraw. Nothing here is styled yet
-and it is not meant to be.
+**Beta.** Every screen is built and works, and the app now wears its final layout:
+near-black surfaces, one warm accent, a bottom bar with the profile as its fifth item,
+large titles that collapse as a list moves, shelves on Home and numbered track lists.
 
 ## What works today
 
 | Working | Not yet |
 | --- | --- |
-| Library scan, cached so it never rescans on open | Theming / Apple Music visuals |
+| Library scan, cached so it never rescans on open | |
 | Eight library sections: songs, albums, artists, playlists, genres, composers, years, folders | Last.fm scrobbling |
 | Albums and artists told apart by their own tags, so a compilation does not credit every guest | A second playback engine |
 | Playlists: make, rename, delete, add, remove and reorder songs | Branding / app icon |
@@ -75,11 +74,12 @@ and it is not meant to be.
 | A duplicate finder that groups copies by title, artist and length, and only reports them | |
 | Each library section remembers where it was scrolled to, and starts afresh when the order changes | |
 | A full-screen cover on tap, from the Now Playing screen | |
-| A profile at the top right of the home screen: a name, a picture and a banner, kept on the device with no account | |
-| A drawer of nine destinations, with counts on Library and Folders and nothing profile-shaped in it | |
+| A profile in the drawer header and on the bottom bar: a name, a picture and a banner, kept on the device with no account | |
+| A drawer of nine destinations under the profile header, with counts on Library and Folders | |
 | Settings behind one drawer row: an index, eight pages, and a search that opens the page with the row in view | |
 | A What's new sheet on the About page, listing what changed in this build | |
 | Bottom tabs and home shelves reordered and hidden from the Customization page | |
+| An Apple Music layout: black pages, cards and sheets one step up, a translucent bottom bar, a large title on every top-level screen, two-column grids, shelves with See all and one warm accent for the play button, progress and loved heart | |
 | Home screen widgets: what is playing, with play and next, and a scrollable list of the library's songs | |
 | Android Auto and other media browsers: the library browsed as songs, albums and artists, with the music played from the browser | |
 

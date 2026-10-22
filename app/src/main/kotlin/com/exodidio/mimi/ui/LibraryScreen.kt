@@ -56,8 +56,9 @@ fun LibraryScreen(
     val active = activeAlphabetLetter(stops, listState.firstVisibleItemIndex)
 
     Column(modifier = modifier.fillMaxSize()) {
-        ScreenHeader(
+        CollapsingHeader(
             title = "Songs",
+            listState = listState,
             subtitle = when {
                 scanning -> "Scanning\u2026"
                 filter.isNotBlank() -> listFilterLabel(shown.size, tracks.size)
@@ -137,7 +138,6 @@ fun LibraryScreen(
                             onAddToQueue = { onAddToQueue(track) },
                             onAddToPlaylist = { onAddToPlaylist(track) },
                         )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
 

@@ -40,7 +40,7 @@ fun AlbumCell(
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = album.album,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.titleMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
